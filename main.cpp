@@ -4,7 +4,9 @@
 #include "row_schema.h"
 #include <cstdlib>
 #include <cstddef>   
-#include <unistd.h>  
+#include <unistd.h> // read(), write(), close()
+#include <fcntl.h> //open(), O_CREAT
+
 
 using namespace std;
 
@@ -16,7 +18,7 @@ struct InputBuffer{
 };
 struct Statement{
     StatementType type;
-    row_schema row;
+    Row_schema row;
 };
 void print_prompt(){cout<<"db >";}
 InputBuffer* createEmptyBuffer(){
@@ -37,10 +39,29 @@ void read_input(InputBuffer* inputBuffer){
     // \n \0 are single character and 0 and \0 means same in c c++ not '0';
 }
 
+void pager_flush(Pager* pager, uint32_t row_num,void* page) {
 
+     off_t offset = lseek(pager->file_descriptor, row_num * ROW_SIZE, SEEK_SET);
+     if (offset == -1) {cout<<"ERROR OFFSET"<<endl;exit(EXIT_FAILURE);}
+     ssize_t bytes_written = write(pager->file_descriptor,(char*)page+(row_num%ROWS_PER_PAGE)*ROW_SIZE, ROW_SIZE);
+     if (bytes_written == -1) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
 
-MetaCommandResult do_meta_command(InputBuffer* input_buffer) {
+}
+
+void close_db(Table* table) {
+      Pager* pager = table->pager;
+      uint32_t num_rows = table->num_rows;    
+      for (uint32_t i = 0; i < num_rows; i++) {
+        uint32_t page_num=i/ROWS_PER_PAGE;
+        if(pager->pages[page_num]!=nullptr){
+            pager_flush(pager, i,pager->pages[page_num]);
+        }
+      }
+}
+
+MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
   if (strcmp(input_buffer->buffer, ".exit") == 0) {
+    close_db(table);
     exit(EXIT_SUCCESS);
   }
   else {
@@ -55,7 +76,7 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
   }
   if (strncmp(input_buffer->buffer, "insert",6) == 0) {   // strncp reads only first 6 bytes
     statement->type = STATEMENT_INSERT;
-    int args_assigned=sscanf(input_buffer->buffer,"insert %d %s",&(statement->row.id),&(statement->row.username));
+    int args_assigned=sscanf(input_buffer->buffer,"insert %ld %s",&(statement->row.id),statement->row.username);
     if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
     return PREPARE_SUCCESS;
   }
@@ -65,7 +86,7 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
 
 executeResult execute_insert(Statement* statement,Table* table){
     if(table->num_rows==TABLE_MAX_ROWS)return EXECUTE_MAX_ROWS;
-    row_schema* row=&(statement->row);
+    Row_schema* row=&(statement->row);
     serialize_row(row,row_slot(table,table->num_rows));
     table->num_rows+=1;
     return EXECUTE_SUCCESS;
@@ -73,7 +94,7 @@ executeResult execute_insert(Statement* statement,Table* table){
 
 
 executeResult execute_select(Statement* statement,Table* table){
-    row_schema* row=&(statement->row);
+    Row_schema* row=&(statement->row);
     int num=table->num_rows;
     for(int i=0;i<num;i++){
         deserialize_row(row_slot(table,i),row);
@@ -96,16 +117,43 @@ executeResult execute_statement(Statement* statement,Table* table) {
   return EXECUTE_SUCCESS;
 }
 
+Pager* pager_open(const char* filename) {
+  int fd = open(filename,
+                O_RDWR |      // Read/Write mode
+                    O_CREAT,  // Create file if it does not exist
+                S_IWUSR |     // User write permission
+                    S_IRUSR   // User read permission
+                );
 
-int main(){
+  if (fd == -1) {
+    cout<<"UNABLE TO OPEN FILE"<<endl;
+    exit(EXIT_FAILURE);
+  }
+
+  off_t file_length = lseek(fd, 0, SEEK_END);
+
+  Pager* pager = new Pager();
+  pager->file_descriptor = fd;
+  pager->file_length = file_length;
+  return pager;
+}
+Table* create_db(const char* filename){ // in c c++ string returns address, so either use string class or char* or char arr[]
     Table* table=new Table();
+    Pager* pager=pager_open(filename);
+    int numRows=(pager->file_length)/ROW_SIZE;
+    table->num_rows=numRows;
+    table->pager=pager;
+    return table;
+}
+int main(){
+    Table* table=create_db("f1.db");
     while (true){
 
         InputBuffer* inputBuffer=createEmptyBuffer();
         print_prompt();
         read_input(inputBuffer);
         if(inputBuffer->buffer[0]=='.'){
-            switch (do_meta_command(inputBuffer)){
+            switch (do_meta_command(inputBuffer,table)){
                 case META_COMMAND_UNRECOGNIZED_COMMAND:
                     cout<<"META_COMMAND_UNRECOGNIZED_COMMAND"<<endl;
                     exit(EXIT_FAILURE);
