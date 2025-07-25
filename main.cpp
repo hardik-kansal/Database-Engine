@@ -38,6 +38,24 @@ void read_input(InputBuffer* inputBuffer){
     // \0 is null terminator
     // \n \0 are single character and 0 and \0 means same in c c++ not '0';
 }
+Cursor* create_cursor_start(Table* table){
+    Cursor* cursor=new Cursor();
+    cursor->table=table;
+    cursor->row_num=0;
+    if(table->num_rows==0)cursor->end_of_table=true;
+    return cursor;
+}
+Cursor* create_cursor_end(Table* table){
+    Cursor* cursor=new Cursor();
+    cursor->table=table;
+    cursor->row_num=table->num_rows;
+    cursor->end_of_table=true;
+    return cursor;
+}
+void advance_cursor(Cursor* cursor){
+    cursor->row_num+=1;
+    if(cursor->table->num_rows==cursor->row_num)cursor->end_of_table=true;
+}
 
 void pager_flush(Pager* pager, uint32_t row_num,void* page) {
 
@@ -86,20 +104,22 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
 
 executeResult execute_insert(Statement* statement,Table* table){
     if(table->num_rows==TABLE_MAX_ROWS)return EXECUTE_MAX_ROWS;
-    Row_schema* row=&(statement->row);
-    serialize_row(row,row_slot(table,table->num_rows));
+    Cursor* cursor=create_cursor_end(table);
+    serialize_row(&(statement->row),row_slot(cursor));
     table->num_rows+=1;
+    delete cursor;
     return EXECUTE_SUCCESS;
 }
 
 
 executeResult execute_select(Statement* statement,Table* table){
-    Row_schema* row=&(statement->row);
-    int num=table->num_rows;
-    for(int i=0;i<num;i++){
-        deserialize_row(row_slot(table,i),row);
-        cout<<row->id<<' '<<row->username<<endl;
+    Cursor* cursor=create_cursor_start(table);
+    while(!cursor->end_of_table){
+        deserialize_row(row_slot(cursor),&(statement->row));
+        advance_cursor(cursor);
+        cout<<statement->row.id<<' '<<statement->row.username<<endl;
     }
+    delete cursor;
     return EXECUTE_SUCCESS;
 
 }
@@ -145,6 +165,8 @@ Table* create_db(const char* filename){ // in c c++ string returns address, so e
     table->pager=pager;
     return table;
 }
+
+
 int main(){
     Table* table=create_db("f1.db");
     while (true){

@@ -21,6 +21,11 @@ struct Row_schema{
       ssize_t id; // 8 bytes
       char username[username_size_fixed];   
   };
+struct Cursor{
+    Table* table;
+    uint32_t row_num;
+    bool end_of_table;
+};
 
 // rows
 const uint32_t ID_SIZE = size_of_attribute(Row_schema, id);
@@ -35,7 +40,9 @@ const uint32_t ROWS_PER_PAGE = PAGE_SIZE / ROW_SIZE;
 const uint32_t TABLE_MAX_ROWS = ROWS_PER_PAGE * TABLE_MAX_PAGES;
 
 
-void* row_slot(Table* table, uint32_t row_num) {
+void* row_slot(Cursor* cursor) {
+    Table* table=cursor->table;
+    uint32_t row_num=cursor->row_num;
     uint32_t page_num = row_num / ROWS_PER_PAGE;
     Pager* pager=table->pager;
     void* page = table->pager->pages[page_num];  
