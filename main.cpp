@@ -1,8 +1,14 @@
 #include <bits/stdc++.h>
 #include "enums.h"
+#include "utilities.h"
+#include "row_schema.h"
+#include <cstdlib>
+#include <cstddef>   
+#include <unistd.h>  
+
 using namespace std;
-#define unsigned long long size_t
-#define signed long long ssize_t
+
+
 struct InputBuffer{
     char* buffer;
     size_t bufferLength;
@@ -10,6 +16,7 @@ struct InputBuffer{
 };
 struct Statement{
     StatementType type;
+    row_schema row;
 };
 void print_prompt(){cout<<"db >";}
 InputBuffer* createEmptyBuffer(){
@@ -35,37 +42,63 @@ void read_input(InputBuffer* inputBuffer){
 MetaCommandResult do_meta_command(InputBuffer* input_buffer) {
   if (strcmp(input_buffer->buffer, ".exit") == 0) {
     exit(EXIT_SUCCESS);
-  } else {
+  }
+  else {
     return META_COMMAND_UNRECOGNIZED_COMMAND;
   }
 }
 
 PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) {
-  if (strcmp(input_buffer->buffer, "insert") == 0) {
-    statement->type = STATEMENT_INSERT;
-    return PREPARE_SUCCESS;
-  }
   if (strcmp(input_buffer->buffer, "select") == 0) {
     statement->type = STATEMENT_SELECT;
+    return PREPARE_SUCCESS;
+  }
+  if (strncmp(input_buffer->buffer, "insert",6) == 0) {   // strncp reads only first 6 bytes
+    statement->type = STATEMENT_INSERT;
+    int args_assigned=sscanf(input_buffer->buffer,"insert %d %s",&(statement->row.id),&(statement->row.username));
+    if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
     return PREPARE_SUCCESS;
   }
 
   return PREPARE_UNRECOGNIZED_STATEMENT;
 }
 
-void execute_statement(Statement* statement) {
+executeResult execute_insert(Statement* statement,Table* table){
+    if(table->num_rows==TABLE_MAX_ROWS)return EXECUTE_MAX_ROWS;
+    row_schema* row=&(statement->row);
+    serialize_row(row,row_slot(table,table->num_rows));
+    table->num_rows+=1;
+    return EXECUTE_SUCCESS;
+}
+
+
+executeResult execute_select(Statement* statement,Table* table){
+    row_schema* row=&(statement->row);
+    int num=table->num_rows;
+    for(int i=0;i<num;i++){
+        deserialize_row(row_slot(table,i),row);
+        cout<<row->id<<' '<<row->username<<endl;
+    }
+    return EXECUTE_SUCCESS;
+
+}
+
+
+executeResult execute_statement(Statement* statement,Table* table) {
   switch (statement->type) {
     case (STATEMENT_INSERT):
-      printf("This is where we would do an insert.\n");
+      return execute_insert(statement,table);
       break;
     case (STATEMENT_SELECT):
-      printf("This is where we would do a select.\n");
+      return execute_select(statement,table);
       break;
   }
+  return EXECUTE_SUCCESS;
 }
 
 
 int main(){
+    Table* table=new Table();
     while (true){
 
         InputBuffer* inputBuffer=createEmptyBuffer();
@@ -87,10 +120,22 @@ int main(){
                 cout<<"PREPARE_UNRECOGNIZED_STATEMENT"<<endl;
                 exit(EXIT_FAILURE);
             case PREPARE_SUCCESS:
-                continue;
+                break;
         }
-
-        execute_statement(statement);
+        switch(execute_statement(statement,table)){
+            case EXECUTE_SUCCESS:
+                cout<<" :success"<<endl;
+                break;
+            case EXECUTE_UNRECOGNIZED_STATEMENT:
+                cout<<" :failed"<<endl;
+                cout<<"REASON: "<<"EXECUTE_UNRECOGNIZED_STATEMENT"<<endl;
+                exit(EXIT_FAILURE);
+            case EXECUTE_MAX_ROWS:
+                cout<<" :failed"<<endl;
+                cout<<"REASON: "<<"EXECUTE_MAX_ROWS"<<endl;
+                exit(EXIT_FAILURE);
+        }
+        
     }
     return 0;
 }
