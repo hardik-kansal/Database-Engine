@@ -125,7 +125,7 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
     return PREPARE_SUCCESS;
   }
   if (strncmp(input_buffer->buffer, "modify",6) == 0) {   // strncp reads only first 6 bytes
-    statement->type = STATEMENT_INSERT;
+    statement->type = STATEMENT_MODIFY;
     int args_assigned=sscanf(input_buffer->buffer,"modify %ld %s",&(statement->row.id),statement->row.username);
     if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
     return PREPARE_SUCCESS;
@@ -143,11 +143,12 @@ executeResult execute_modify(Statement* statement,Table* table){
         cout<<"ID DOES NOT EXIST"<<endl;
         return EXECUTE_UNRECOGNIZED_STATEMENT;
     }
+    size_t row_id=statement->row.id;
     statement->row.id=index_schema->row_num;
     Cursor* cursor1=create_cursor_tree(statement,table);
     Row_schema* row=row_slot(cursor1);
+    statement->row.id=row_id;
     serialize_row(&(statement->row),row);
-    table->num_rows+=1;
     delete cursor;
     delete cursor1;
     return EXECUTE_SUCCESS;
@@ -163,7 +164,7 @@ executeResult execute_insert(Statement* statement,Table* table){
     }
     Cursor* cursor1=create_cursor_end_tree(statement,table);
     Row_schema* row=row_slot(cursor1);
-    serialize_row(&(statement->row),row_slot(cursor));
+    serialize_row(&(statement->row),row);
     table->num_rows+=1;
     delete cursor;
     delete cursor1;

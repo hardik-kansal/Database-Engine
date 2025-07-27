@@ -104,7 +104,7 @@ Row_schema* row_slot(Cursor* cursor) {
             }
         }
     }
-    return row;
+    return pager->tree->search(row_num);
 }
 
 // get value in id tree , if does not exist search in file
