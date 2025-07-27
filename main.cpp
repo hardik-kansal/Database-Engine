@@ -235,8 +235,8 @@ Table* create_db(const char* filename,uint32_t &M,uint32_t &N){ // in c c++ stri
 
 int main(){
 
-    uint32_t M=ROWS_PER_PAGE;
-    uint32_t N=INDEX_PER_PAGE;
+    uint32_t M=ROWS_PER_PAGE;    // 4096/16 -> 256
+    uint32_t N=INDEX_PER_PAGE;   // 4096/8  -> 512
 
     cout<<"ROWS_PER_PAGE: "<<ROWS_PER_PAGE<<endl;
     cout<<"INDEX_PER_PAGE: "<<INDEX_PER_PAGE<<endl;
