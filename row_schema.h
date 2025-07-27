@@ -100,7 +100,7 @@ Row_schema* row_slot(Cursor* cursor) {
                 index_schema->row_num=row_num+i;
                 deserialize_row(readBuffer+i*ROW_SIZE,val);
                 pager->tree->insert(row_num+i,val);
-                pager->tree_id->insert(cursor->row.id,index_schema);
+                pager->tree_id->insert(val->id,index_schema);
             }
         }
     }
