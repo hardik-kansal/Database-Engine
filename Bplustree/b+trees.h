@@ -13,7 +13,7 @@ struct Node{
     vector<int> keys;
     vector<Node<T>*> children;
     Node<T>* next; 
-    vector<T> pos;
+    vector<T*> pos;
     Node<T>(bool isLeaf){
         next=nullptr;
         this->isLeaf=isLeaf;
@@ -259,9 +259,9 @@ class Bplustrees{
             curr=curr->children[index];
         }
         int index=lb(curr,key);
-        return (index<curr->keys.size() && curr->keys[index]==key) ? &(curr->pos[index]) : nullptr;
+        return (index<curr->keys.size() && curr->keys[index]==key) ? (curr->pos[index]) : nullptr;
     }
-    void insert(int key,T pos){
+    void insert(int key,T* pos){
         vector<Node<T>*> path;
         Node<T>* curr = root;
         path.push_back(curr);
