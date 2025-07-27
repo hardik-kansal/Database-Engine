@@ -2,7 +2,7 @@
 #ifndef row_schema_H
 #define row_schema_H
 #define username_size_fixed 8
-#define TABLE_MAX_PAGES 100
+#define TABLE_MAX_PAGES 200
 #define size_of_attribute(Struct, Attribute) sizeof(((Struct*)0)->Attribute)
 using namespace std;
 

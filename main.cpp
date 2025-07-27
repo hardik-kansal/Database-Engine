@@ -6,6 +6,8 @@
 #include <unistd.h> // read(), write(), close()
 #include <fcntl.h> //open(), O_CREAT
 #include "./Bplustree/b+trees.h"
+#include <chrono>
+#include <fstream>
 
 using namespace std;
 
@@ -93,14 +95,23 @@ void pager_flush(Pager* pager, uint32_t row_num,Row_schema* row) {
 }
 
 void close_db(Table* table) {
-      Pager* pager = table->pager;
-      uint32_t num_rows = table->num_rows;    
-      for (uint32_t i = 0; i < num_rows; i++) {
+    Pager* pager = table->pager;
+    uint32_t num_rows = table->num_rows;    
+    for (uint32_t i = 0; i < num_rows; i++) {
         Row_schema* row=pager->tree->search(i);
         if(row!=nullptr){
             pager_flush(pager,i,row);
         }
-      }
+    }
+    // Free B+ trees
+    delete pager->tree;
+    delete pager->tree_id;
+    // Close file descriptor
+    close(pager->file_descriptor);
+    // Free Pager
+    delete pager;
+    // Free Table
+    delete table;
 }
 
 MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
@@ -177,7 +188,7 @@ executeResult execute_select(Statement* statement,Table* table){
     while(!cursor->end_of_table){
         deserialize_row(row_slot(cursor),&(statement->row));
         advance_cursor(cursor);
-        cout<<statement->row.id<<' '<<statement->row.username<<endl;
+        // cout<<statement->row.id<<' '<<statement->row.username<<endl;
     }
     delete cursor;
     return EXECUTE_SUCCESS;
@@ -232,55 +243,61 @@ Table* create_db(const char* filename,uint32_t &M,uint32_t &N){ // in c c++ stri
     return table;
 }
 
-
-int main(){
-
-    uint32_t M=ROWS_PER_PAGE;    // 4096/16 -> 256
-    uint32_t N=INDEX_PER_PAGE;   // 4096/8  -> 512
-
-    cout<<"ROWS_PER_PAGE: "<<ROWS_PER_PAGE<<endl;
-    cout<<"INDEX_PER_PAGE: "<<INDEX_PER_PAGE<<endl;
-
-    Table* table=create_db("f1.db",M,N);
-    while (true){
-
-        InputBuffer* inputBuffer=createEmptyBuffer();
-        print_prompt();
-        read_input(inputBuffer);
-        if(inputBuffer->buffer[0]=='.'){
-            switch (do_meta_command(inputBuffer,table)){
-                case META_COMMAND_UNRECOGNIZED_COMMAND:
-                    cout<<"META_COMMAND_UNRECOGNIZED_COMMAND"<<endl;
-                    exit(EXIT_FAILURE);
-                case META_COMMAND_SUCCESS:
-                    continue;
-            }
-        }
-
-        Statement* statement=new Statement();
-        switch (prepare_statement(inputBuffer,statement)){
-            case PREPARE_UNRECOGNIZED_STATEMENT:
-                cout<<"PREPARE_UNRECOGNIZED_STATEMENT"<<endl;
-                exit(EXIT_FAILURE);
-            case PREPARE_SUCCESS:
-                break;
-        }
-        switch(execute_statement(statement,table)){
-            case EXECUTE_SUCCESS:
-                cout<<" :success"<<endl;
-                break;
-            case EXECUTE_UNRECOGNIZED_STATEMENT:
-                cout<<" :failed"<<endl;
-                cout<<"REASON: "<<"EXECUTE_UNRECOGNIZED_STATEMENT"<<endl;
-                exit(EXIT_FAILURE);
-            case EXECUTE_MAX_ROWS:
-                cout<<" :failed"<<endl;
-                cout<<"REASON: "<<"EXECUTE_MAX_ROWS"<<endl;
-                exit(EXIT_FAILURE);
-        }
-        delete inputBuffer;
-        delete statement;
+void benchmark_inserts() {
+    std::ofstream fout("benchmark_results.csv");
+    fout << "page_size,num_insertions,time_ms" << std::endl;
+    
+    // Page sizes: 1KB to 8KB (in bytes)
+    for (uint32_t page_kb = 1; page_kb <= 8; ++page_kb) {
+        uint32_t PAGE_SIZE = page_kb * 1024;
+        uint32_t ROW_SIZE = ID_SIZE + USERNAME_SIZE;
+        uint32_t ROWS_PER_PAGE = PAGE_SIZE / ROW_SIZE;
+        uint32_t table_max_pages = 200; // as in row_schema.h
+        uint32_t TABLE_MAX_ROWS = ROWS_PER_PAGE * table_max_pages;
+        uint32_t INDEX_PER_PAGE = PAGE_SIZE / INDEX_SIZE;
         
+        // Insertion counts: 256, 512, ..., 256*256
+        for (uint32_t num_inserts = ROWS_PER_PAGE; num_inserts <= TABLE_MAX_ROWS; num_inserts += ROWS_PER_PAGE) {
+            // Remove any existing DB file
+            remove("f1.db");
+            
+            // Setup DB with current page size
+            uint32_t M = ROWS_PER_PAGE;
+            uint32_t N = INDEX_PER_PAGE;
+            Table* table = create_db("f1.db", M, N);
+            table->num_rows = 0;
+            
+            auto start = std::chrono::high_resolution_clock::now();
+            // Insert phase
+            for (uint32_t i = 0; i < num_inserts; ++i) {
+                Statement statement;
+                statement.type = STATEMENT_INSERT;
+                statement.row.id = i;
+                snprintf(statement.row.username, username_size_fixed, "u%u", i);
+                execute_insert(&statement, table);
+            }
+            // Flush and close
+            close_db(table);
+            
+            // Reopen DB
+            Table* table2 = create_db("f1.db", M, N);
+            // Select phase
+            Statement select_stmt;
+            select_stmt.type = STATEMENT_SELECT;
+            execute_select(&select_stmt, table2);
+            // Final cleanup
+            close_db(table2);
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> elapsed = end - start;
+            
+            // Output result
+            fout << (page_kb * 1024) << "," << num_inserts << "," << elapsed.count() << std::endl;
+        }
     }
+    fout.close();
+}
+
+int main() {
+    benchmark_inserts();
     return 0;
 }
