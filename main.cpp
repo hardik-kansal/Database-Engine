@@ -6,7 +6,7 @@
 #include <cstddef>   
 #include <unistd.h> // read(), write(), close()
 #include <fcntl.h> //open(), O_CREAT
-
+#include "./Bplustree/b+trees.h"
 
 using namespace std;
 
@@ -57,11 +57,11 @@ void advance_cursor(Cursor* cursor){
     if(cursor->table->num_rows==cursor->row_num)cursor->end_of_table=true;
 }
 
-void pager_flush(Pager* pager, uint32_t row_num,void* page) {
+void pager_flush(Pager* pager, uint32_t row_num,Row_schema* row) {
 
      off_t offset = lseek(pager->file_descriptor, row_num * ROW_SIZE, SEEK_SET);
      if (offset == -1) {cout<<"ERROR OFFSET"<<endl;exit(EXIT_FAILURE);}
-     ssize_t bytes_written = write(pager->file_descriptor,(char*)page+(row_num%ROWS_PER_PAGE)*ROW_SIZE, ROW_SIZE);
+     ssize_t bytes_written = write(pager->file_descriptor,row, ROW_SIZE);
      if (bytes_written == -1) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
 
 }
@@ -70,9 +70,9 @@ void close_db(Table* table) {
       Pager* pager = table->pager;
       uint32_t num_rows = table->num_rows;    
       for (uint32_t i = 0; i < num_rows; i++) {
-        uint32_t page_num=i/ROWS_PER_PAGE;
-        if(pager->pages[page_num]!=nullptr){
-            pager_flush(pager, i,pager->pages[page_num]);
+        Row_schema* row=pager->tree->search(i);
+        if(row!=nullptr){
+            pager_flush(pager,i,row);
         }
       }
 }
@@ -98,7 +98,7 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
     if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
     return PREPARE_SUCCESS;
   }
-
+  
   return PREPARE_UNRECOGNIZED_STATEMENT;
 }
 
@@ -137,7 +137,7 @@ executeResult execute_statement(Statement* statement,Table* table) {
   return EXECUTE_SUCCESS;
 }
 
-Pager* pager_open(const char* filename) {
+Pager* pager_open(const char* filename,uint32_t &M) {
   int fd = open(filename,
                 O_RDWR |      // Read/Write mode
                     O_CREAT,  // Create file if it does not exist
@@ -153,13 +153,15 @@ Pager* pager_open(const char* filename) {
   off_t file_length = lseek(fd, 0, SEEK_END);
 
   Pager* pager = new Pager();
+  Bplustrees<Row_schema>* tree=new Bplustrees<Row_schema>(M);
   pager->file_descriptor = fd;
   pager->file_length = file_length;
+  pager->tree=tree;
   return pager;
 }
-Table* create_db(const char* filename){ // in c c++ string returns address, so either use string class or char* or char arr[]
+Table* create_db(const char* filename,uint32_t &M){ // in c c++ string returns address, so either use string class or char* or char arr[]
     Table* table=new Table();
-    Pager* pager=pager_open(filename);
+    Pager* pager=pager_open(filename,M);
     int numRows=(pager->file_length)/ROW_SIZE;
     table->num_rows=numRows;
     table->pager=pager;
@@ -168,7 +170,9 @@ Table* create_db(const char* filename){ // in c c++ string returns address, so e
 
 
 int main(){
-    Table* table=create_db("f1.db");
+    uint32_t M=ROWS_PER_PAGE;
+    cout<<"ROWS_PER_PAGE: "<<ROWS_PER_PAGE<<endl;
+    Table* table=create_db("f1.db",M);
     while (true){
 
         InputBuffer* inputBuffer=createEmptyBuffer();
