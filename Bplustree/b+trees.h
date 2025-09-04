@@ -9,14 +9,18 @@ using namespace std::chrono;
 #define Bplustree
 template <typename T>
 struct Node{
-    bool isLeaf;
+    bool isLeaf; 
     vector<int> keys;
-    vector<Node<T>*> children;
-    Node<T>* next; 
-    vector<T*> pos;
+    vector<Node<T>*> children;  
+    Node<T>* next;
+    vector<T*> pos; 
+    uint32_t pageNumber; 
+    bool dirty; 
     Node<T>(bool isLeaf){
         next=nullptr;
         this->isLeaf=isLeaf;
+        pageNumber=0;
+        dirty=false;
     }
 };
 
@@ -27,6 +31,8 @@ class Bplustrees{
     uint32_t M=3;
     uint32_t MAX_KEYS=M-1;
     uint32_t MIN_KEYS = ceil((M - 1) / 2.0);
+    uint32_t nextPageNumber=2; // root is page 1
+    uint32_t allocatePageNumber(){ return nextPageNumber++; }
     int ub(Node<T>* curr,int key){
         return upper_bound(curr->keys.begin(),curr->keys.end(),key)-curr->keys.begin();
     }
@@ -60,11 +66,13 @@ class Bplustrees{
                 node->keys.insert(node->keys.begin(), parent->keys[indexInParent - 1]);
                 parent->keys[indexInParent - 1] = leftSibling->keys.back();
                 leftSibling->keys.pop_back();
+                node->dirty = true; parent->dirty = true; leftSibling->dirty = true;
     
                 
                 if (!leftSibling->isLeaf) {
                     node->children.insert(node->children.begin(), leftSibling->children.back());
                     leftSibling->children.pop_back();
+                    node->dirty = true; leftSibling->dirty = true;
                 }
                 return;
             }
@@ -75,11 +83,13 @@ class Bplustrees{
                 node->keys.push_back(parent->keys[indexInParent]);
                 parent->keys[indexInParent] = rightSibling->keys.front();
                 rightSibling->keys.erase(rightSibling->keys.begin());
+                node->dirty = true; parent->dirty = true; rightSibling->dirty = true;
     
                 
                 if (!rightSibling->isLeaf) {
                     node->children.push_back(rightSibling->children.front());
                     rightSibling->children.erase(rightSibling->children.begin());
+                    node->dirty = true; rightSibling->dirty = true;
                 }
                 return;
             }
@@ -88,9 +98,11 @@ class Bplustrees{
             if (leftSibling) {
                 leftSibling->keys.push_back(parent->keys[indexInParent - 1]);
                 leftSibling->keys.insert(leftSibling->keys.end(), node->keys.begin(), node->keys.end());
+                leftSibling->dirty = true; parent->dirty = true; node->dirty = true;
     
                 if (!node->isLeaf) {
                     leftSibling->children.insert(leftSibling->children.end(), node->children.begin(), node->children.end());
+                    leftSibling->dirty = true;
                 }
     
                 parent->keys.erase(parent->keys.begin() + indexInParent - 1);
@@ -102,9 +114,11 @@ class Bplustrees{
             else if (rightSibling) {
                 node->keys.push_back(parent->keys[indexInParent]);
                 node->keys.insert(node->keys.end(), rightSibling->keys.begin(), rightSibling->keys.end());
+                node->dirty = true; parent->dirty = true; rightSibling->dirty = true;
     
                 if (!node->isLeaf) {
                     node->children.insert(node->children.end(), rightSibling->children.begin(), rightSibling->children.end());
+                    node->dirty = true;
                 }
     
                 parent->keys.erase(parent->keys.begin() + indexInParent);
@@ -140,6 +154,7 @@ class Bplustrees{
                 left->keys.pop_back();
                 left->pos.pop_back();
                 parent->keys[idx - 1] = leaf->keys[0];
+                leaf->dirty = true; left->dirty = true; parent->dirty = true;
                 return;
             }
         }
@@ -154,6 +169,7 @@ class Bplustrees{
                 right->keys.erase(right->keys.begin());
                 right->pos.erase(right->pos.begin());
                 parent->keys[idx] = right->keys[0];
+                leaf->dirty = true; right->dirty = true; parent->dirty = true;
                 return;
             }
         }
@@ -164,6 +180,7 @@ class Bplustrees{
             left->keys.insert(left->keys.end(), leaf->keys.begin(), leaf->keys.end());
             left->pos.insert(left->pos.end(), leaf->pos.begin(), leaf->pos.end());
             left->next = leaf->next;
+            left->dirty = true; parent->dirty = true; leaf->dirty = true;
     
             parent->children.erase(parent->children.begin() + idx);
             parent->keys.erase(parent->keys.begin() + idx - 1);
@@ -175,6 +192,7 @@ class Bplustrees{
             leaf->keys.insert(leaf->keys.end(), right->keys.begin(), right->keys.end());
             leaf->pos.insert(leaf->pos.end(), right->pos.begin(), right->pos.end());
             leaf->next = right->next;
+            leaf->dirty = true; right->dirty = true; parent->dirty = true;
     
             parent->children.erase(parent->children.begin() + idx + 1);
             parent->keys.erase(parent->keys.begin() + idx);
@@ -203,6 +221,10 @@ class Bplustrees{
             newRoot->keys.push_back(key);
             newRoot->children.push_back(oldRoot);
             newRoot->children.push_back(rightChild);
+            newRoot->pageNumber = allocatePageNumber();
+            newRoot->dirty = true;
+            oldRoot->dirty = true;
+            rightChild->dirty = true;
             root = newRoot;
             return;
         }
@@ -212,6 +234,7 @@ class Bplustrees{
             int idx = ub(parent,key);
             parent->keys.insert(parent->keys.begin() + idx, key);
             parent->children.insert(parent->children.begin() + idx + 1, rightChild);
+            parent->dirty = true;
     
             if (parent->keys.size() <= MAX_KEYS)
                 return;
@@ -222,11 +245,14 @@ class Bplustrees{
     
             newInternal->keys.assign(parent->keys.begin() + mid + 1, parent->keys.end());
             newInternal->children.assign(parent->children.begin() + mid + 1, parent->children.end());
+            newInternal->pageNumber = allocatePageNumber();
+            newInternal->dirty = true;
     
             int upKey = parent->keys[mid];
     
             parent->keys.resize(mid);
             parent->children.resize(mid + 1);
+            parent->dirty = true;
     
             if (level == 0) {
                 
@@ -234,6 +260,9 @@ class Bplustrees{
                 newRoot->keys.push_back(upKey);
                 newRoot->children.push_back(parent);
                 newRoot->children.push_back(newInternal);
+                newRoot->pageNumber = allocatePageNumber();
+                newRoot->dirty = true;
+                parent->dirty = true;
                 root = newRoot;
             } else {
                 rightChild = newInternal;
@@ -248,6 +277,7 @@ class Bplustrees{
     public:
     Bplustrees(int M){
         root = new Node<T>(true);
+        root->pageNumber = 1; // root page is 1
         this->M=M;
         this->MAX_KEYS=M-1;
         this->MIN_KEYS = ceil((M - 1) / 2.0);
@@ -272,21 +302,26 @@ class Bplustrees{
             path.push_back(curr);
         }
         int idx = lb(curr,key);
-        if(idx<curr->keys.size() && curr->keys[idx]==key){curr->pos[idx]=pos;return;}
+        if(idx<curr->keys.size() && curr->keys[idx]==key){curr->pos[idx]=pos;curr->dirty=true;return;}
         curr->keys.insert(curr->keys.begin() + idx, key);
         curr->pos.insert(curr->pos.begin() + idx, pos);
+        curr->dirty = true;
         if (curr->keys.size() > MAX_KEYS) {
             Node<T>* newLeaf = new Node<T>(true);
+            newLeaf->pageNumber = allocatePageNumber();
 
             int mid = (curr->keys.size() + 1) / 2;
             newLeaf->keys.assign(curr->keys.begin() + mid, curr->keys.end());
             newLeaf->pos.assign(curr->pos.begin() + mid, curr->pos.end());
+            newLeaf->dirty = true;
 
             curr->keys.resize(mid);
             curr->pos.resize(mid);
+            curr->dirty = true;
 
             newLeaf->next = curr->next;
             curr->next = newLeaf;
+            curr->dirty = true;
             insertInternal(path, newLeaf->keys[0], newLeaf);
         }
 
@@ -313,6 +348,7 @@ class Bplustrees{
        
         curr->keys.erase(curr->keys.begin() + idx);
         curr->pos.erase(curr->pos.begin() + idx);
+        curr->dirty = true;
 
         if(root->keys[0]==key)root->keys[0]=curr->keys[0];
         

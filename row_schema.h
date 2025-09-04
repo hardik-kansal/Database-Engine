@@ -1,4 +1,6 @@
 #include "./Bplustree/b+trees.h"
+#include <cstring>
+#include <sys/types.h>
 #ifndef row_schema_H
 #define row_schema_H
 #define username_size_fixed 8
@@ -11,11 +13,90 @@ struct Index_schema{
     ssize_t row_num; // 8 bytes 
 };
 
+
+enum class PageType : uint8_t {
+    INTERIOR = 0,
+    LEAF = 1
+};
+
+// total size -> 16 bytes
+struct InteriorCell {
+    uint64_t rowid;     // 8 bytes
+    uint32_t childPage; // 4 bytes
+    uint8_t  pad[4];    // pad to 16 bytes
+};
+
 // total size -> 16 bytes
 struct Row_schema{
     ssize_t id; // 8 bytes
     char username[username_size_fixed];    // 8 bytes
 };
+
+
+// Constants needed by Page layout
+const uint32_t PAGE_SIZE = 4096;  // 4 KB page size
+const uint32_t ROW_SIZE  = sizeof(Row_schema); // 16 bytes
+
+// -------------------
+// Page (4 KB)
+// -------------------
+
+struct Page {
+    uint32_t pageNumber;   // 4 bytes
+    PageType type;         // 1 byte
+    uint32_t nextPage;     // 4 bytes (used if LEAF)
+    uint16_t rowCount;     // 2 bytes
+    uint8_t reserved[5];   // padding → header = 16 bytes
+
+    // Data area for rows
+    uint8_t data[PAGE_SIZE - 16];
+
+    // Dirty bit (memory-only, not part of on-disk format)
+    bool dirty; 
+
+    Page(uint32_t num = 0, PageType t = PageType::INTERIOR)
+        : pageNumber(num), type(t), nextPage(0), rowCount(0), dirty(false) {
+        memset(reserved, 0, sizeof(reserved));
+        memset(data, 0, sizeof(data));
+    }
+
+    // Add interior cell
+    bool addInterior(uint64_t rowid, uint32_t child) {
+        if (type != PageType::INTERIOR) return false;
+        if ((rowCount + 1) * ROW_SIZE > sizeof(data)) return false;
+        InteriorCell cell{rowid, child, {0}};
+        memcpy(data + rowCount * ROW_SIZE, &cell, sizeof(cell));
+        rowCount++;
+        dirty = true;  // mark modified
+        return true;
+    }
+
+    // Add leaf row (rowid maps to Row_schema.id, payload[8] -> username)
+    bool addLeaf(uint64_t rowid, const uint8_t* payload) {
+        if (type != PageType::LEAF) return false;
+        if ((rowCount + 1) * ROW_SIZE > sizeof(data)) return false;
+        Row_schema cell;
+        cell.id = static_cast<ssize_t>(rowid);
+        memcpy(cell.username, payload, username_size_fixed);
+        memcpy(data + rowCount * ROW_SIZE, &cell, sizeof(cell));
+        rowCount++;
+        dirty = true;  // mark modified
+        return true;
+    }
+
+    // Accessors
+    InteriorCell* getInterior(int idx) {
+        return reinterpret_cast<InteriorCell*>(data + idx * ROW_SIZE);
+    }
+
+    Row_schema* getLeaf(int idx) {
+        return reinterpret_cast<Row_schema*>(data + idx * ROW_SIZE);
+    }
+
+    // Mark clean manually after flushing to disk
+    void flush() { dirty = false; }
+};
+
 
 // total size -> 24 bytes
 struct Pager{
@@ -46,11 +127,9 @@ const uint32_t ID_SIZE = size_of_attribute(Row_schema, id);
 const uint32_t USERNAME_SIZE = size_of_attribute(Row_schema, username);
 const uint32_t ID_OFFSET = 0;
 const uint32_t USERNAME_OFFSET = ID_OFFSET + ID_SIZE;
-const uint32_t ROW_SIZE = ID_SIZE + USERNAME_SIZE;
 
 
 // pages
-const uint32_t PAGE_SIZE = 4096;  //4kb -> virtual memory page size in os
 const uint32_t ROWS_PER_PAGE = PAGE_SIZE / ROW_SIZE;
 const uint32_t TABLE_MAX_ROWS = ROWS_PER_PAGE * TABLE_MAX_PAGES;
 
