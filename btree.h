@@ -54,7 +54,43 @@ class Bplustrees{
                 }
             }
         }
-
+        /*
+        void insert(uint8_t key,){
+            vector<pageNode*> path;
+            pageNode* curr = root;
+            path.push_back(curr);
+    
+            while (curr->type!=PAGE_TYPE_LEAF) {
+                int idx = ub(curr->keys,NO_OF_ROWS,key);
+                curr = getPage(curr->data[idx]);
+                path.push_back(curr);
+            }
+            int idx = lb(curr->keys,NO_OF_ROWS,key);
+            if(idx<NO_OF_ROWS && curr->keys[idx]==key){
+                curr->pos[idx]=pos;
+                return;
+            }
+            curr->keys.insert(curr->keys.begin() + idx, key);
+            curr->pos.insert(curr->pos.begin() + idx, pos);
+            if (curr->keys.size() > MAX_KEYS) {
+                Node<T>* newLeaf = new Node<T>(true);
+    
+                int mid = (curr->keys.size() + 1) / 2;
+                newLeaf->keys.assign(curr->keys.begin() + mid, curr->keys.end());
+                newLeaf->pos.assign(curr->pos.begin() + mid, curr->pos.end());
+    
+                curr->keys.resize(mid);
+                curr->pos.resize(mid);
+    
+                newLeaf->next = curr->next;
+                curr->next = newLeaf;
+                insertInternal(path, newLeaf->keys[0], newLeaf);
+            }
+            
+    
+        }
+        */
+        
         // insert - modify 
         // delete
 

@@ -61,11 +61,11 @@ struct Pager{
         }
     }
 
-    uint8_t getRow(uint8_t row_no,uint32_t page_no){
+    uint8_t getRow(uint64_t id,uint32_t page_no){
 
         pageNode* page=getPage(page_no);
         if(page->type!=PAGE_TYPE_LEAF){cout<<"INTERIOR PAGE ACCESSED FOR ROW";exit(EXIT_FAILURE);}
-        uint8_t index=lb(page->keys,NO_OF_ROWS,row_no);
+        uint8_t index=lb(page->keys,NO_OF_ROWS,id);
         if(index==NO_OF_ROWS) return -1;
         return index;
       
