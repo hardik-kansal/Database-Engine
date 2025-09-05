@@ -9,7 +9,7 @@
 
 // total size -> 16 bytes
 struct Row_schema{
-    ssize_t id; // 8 bytes
+    uint64_t id; // 8 bytes
     char username[username_size_fixed];    // 8 bytes
 };
 

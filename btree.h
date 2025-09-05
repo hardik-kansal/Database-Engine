@@ -20,15 +20,14 @@ class Bplustrees{
             this->MIN_KEYS = ceil((M - 1) / 2.0);
         }
 
-        // pageNode* search(int key){
-        //     page curr=root;
-        //     while(!curr->isLeaf){
-        //         int index=ub(curr,key);
-        //         curr=curr->children[index];
-        //     }
-        //     int index=lb(curr,key);
-        //     return (index<curr->keys.size() && curr->keys[index]==key) ? (curr->pos[index]) : nullptr;
-        // }
+        uint32_t search(int key){
+            pageNode* curr =root;
+            while(curr->type!=PAGE_TYPE_LEAF){
+                int index=ub(curr->keys,NO_OF_ROWS,key);
+                curr=pager->getPage(curr->data[index]);
+            }
+            return curr->pageNumber;
+        }
 
 };
 

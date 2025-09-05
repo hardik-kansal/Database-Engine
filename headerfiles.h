@@ -22,8 +22,8 @@ struct pageNode{
     uint32_t nextPage;
     uint16_t rowCount;
     uint8_t reserved[5];
-    ssize_t keys[NO_OF_ROWS]; 
-    ssize_t data[NO_OF_ROWS]; 
+    uint64_t keys[NO_OF_ROWS]; 
+    uint64_t data[NO_OF_ROWS]; 
     bool dirty;
 };
 
