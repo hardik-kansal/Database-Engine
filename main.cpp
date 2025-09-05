@@ -98,7 +98,7 @@ Pager* pager_open(const char* filename,const uint32_t &M,uint32_t capacity) {
     pager->file_descriptor = fd;
     pager->file_length = file_length;
     pager->lruCache=lru;
-    int numOfPages=(pager->file_length)/PAGE_SIZE;
+    uint32_t numOfPages=(pager->file_length)/PAGE_SIZE;
     pager->numOfPages=numOfPages;
     return pager;
 }

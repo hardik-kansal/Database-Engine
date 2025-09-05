@@ -20,10 +20,10 @@ class Bplustrees{
             this->MIN_KEYS = ceil((M - 1) / 2.0);
         }
 
-        uint32_t search(int key){
+        uint32_t search(uint8_t key){
             pageNode* curr =root;
             while(curr->type!=PAGE_TYPE_LEAF){
-                int index=ub(curr->keys,NO_OF_ROWS,key);
+                uint8_t index=ub(curr->keys,NO_OF_ROWS,key);
                 curr=pager->getPage(curr->data[index]);
             }
             return curr->pageNumber;
@@ -54,6 +54,9 @@ class Bplustrees{
                 }
             }
         }
+
+        // insert - modify 
+        // delete
 
 };
 
