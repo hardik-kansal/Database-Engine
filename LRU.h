@@ -1,10 +1,8 @@
 #ifndef LRU_H
 #define LRU_H
-#include "btree.h"
 #include "headerfiles.h"
-#include <unordered_map>
-#include "pager.h"
 using namespace std;
+
 struct Node{
     uint32_t key;
     pageNode* value;

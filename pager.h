@@ -6,11 +6,10 @@
 
 // total size -> 24 bytes
 struct Pager{
+
     int file_descriptor;  // 4 bytes
     off_t file_length; // 8 bytes
     LRUCache* lruCache; // 8 bytes
-
-
 
     // off_t long long int
     pageNode* getPage(uint32_t page_no){
@@ -47,15 +46,16 @@ struct Pager{
         ssize_t bytes_written = write(this->file_descriptor,node,PAGE_SIZE);
         if (bytes_written<0) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
 
- }
-
- void flushAll(){
-    uint32_t count=this->lruCache->count;
-    Node* tem=this->lruCache->head->next;
-    for(uint32_t i=0;i<count;i++){
-        if(tem->value->dirty)this->writePage(tem->value);
     }
-}
+
+    void flushAll(){
+        uint32_t count=this->lruCache->count;
+        Node* tem=this->lruCache->head->next;
+        for(uint32_t i=0;i<count;i++){
+            if(tem->value->dirty)this->writePage(tem->value);
+            tem=tem->next;
+        }
+    }
 
  };
 

@@ -2,8 +2,13 @@
 #include "pages_schema.h"
 #include "pager.h"
 #include "headerfiles.h"
+#include "btree.h"
 
-
+struct Table{
+    uint32_t numOfPages;
+    Pager* pager;
+    Bplustrees* bplusTrees;
+};
 
 struct InputBuffer{
     char* buffer;
@@ -100,9 +105,11 @@ Pager* pager_open(const char* filename,const uint32_t &M,uint32_t capacity) {
 Table* create_db(const char* filename,const uint32_t &M,uint32_t capacity){ // in c c++ string returns address, so either use string class or char* or char arr[]
       Table* table=new Table();
       Pager* pager=pager_open(filename,M,capacity);
+      Bplustrees* bplusTrees=new Bplustrees(pager,M);
       int numOfPages=(pager->file_length)/PAGE_SIZE;
       table->numOfPages=numOfPages;
       table->pager=pager;
+      table->bplusTrees=bplusTrees;
       return table;
   }
 void close_db(Table* table) {

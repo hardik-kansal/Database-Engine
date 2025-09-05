@@ -28,15 +28,4 @@ struct Page {
 
 
 
-struct Pager; // forward declaration to avoid circular include
-
-struct Table{
-    uint32_t numOfPages;
-    Pager* pager;
-};
-
-
-
-
-
 #endif
