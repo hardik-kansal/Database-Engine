@@ -2,13 +2,42 @@
 #define pager_H
 #include "LRU.h"
 #include "headerfiles.h"
+#include "pages_schema.h"
 
 // total size -> 24 bytes
 struct Pager{
     int file_descriptor;  // 4 bytes
-    uint32_t file_length; // 4 bytes
+    off_t file_length; // 8 bytes
     LRUCache* lruCache; // 8 bytes
  };
+
+ // off_t long long int
+ pageNode* getPage(Pager* pager,uint32_t page_no){
+    if(pager->lruCache->get(page_no)!=nullptr)return pager->lruCache->get(page_no);
+    else{
+        off_t offset=lseek(pager->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
+        if(offset<0)exit(EXIT_FAILURE);
+        Page rawPage{};
+        ssize_t bytesRead = read(pager->file_descriptor, &rawPage, PAGE_SIZE);
+        if (bytesRead <0)exit(EXIT_FAILURE);
+
+        
+        pageNode* node = new pageNode();
+        node->pageNumber = rawPage.pageNumber;
+        node->type = static_cast<PageType>(rawPage.type); 
+        // c++ stores in file as 0,1 on retrieving error if not typecast.
+
+        node->nextPage = rawPage.nextPage;
+        node->rowCount = rawPage.rowCount;
+        memcpy(node->reserved, rawPage.reserved, sizeof(rawPage.reserved));
+        memcpy(node->data, rawPage.data, sizeof(rawPage.data));
+        node->dirty=false;
+        
+        pager->lruCache->put(page_no,node);
+
+        return node;
+    }
+ }
 
 
 #endif

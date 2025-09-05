@@ -1,9 +1,8 @@
-#include <bits/stdc++.h>
 #include "enums.h"
 #include "pages_schema.h"
+#include "pager.h"
 #include "headerfiles.h"
 
-using namespace std;
 
 
 struct InputBuffer{
@@ -82,7 +81,37 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
 // }
 
 
+Pager* pager_open(const char* filename,const uint32_t &M,uint32_t capacity) {
+    int fd = open(filename,
+                  O_RDWR |      // Read/Write mode
+                      O_CREAT,  // Create file if it does not exist
+                  S_IWUSR |     // User write permission
+                      S_IRUSR   // User read permission
+                  );
+  
+    if (fd == -1) {
+      cout<<"UNABLE TO OPEN FILE"<<endl;
+      exit(EXIT_FAILURE);
+    }
+  
+    off_t file_length = lseek(fd, 0, SEEK_END);
+  
+    Pager* pager = new Pager();
+    LRUCache* lru=new LRUCache(capacity);
+    pager->file_descriptor = fd;
+    pager->file_length = file_length;
+    pager->lruCache=lru;
+    return pager;
+  }
 
+  Table* create_db(const char* filename,const uint32_t &M,uint32_t capacity){ // in c c++ string returns address, so either use string class or char* or char arr[]
+      Table* table=new Table();
+      Pager* pager=pager_open(filename,M,capacity);
+      int numOfPages=(pager->file_length)/PAGE_SIZE;
+      table->numOfPages=numOfPages;
+      table->pager=pager;
+      return table;
+  }
 
 
 
@@ -93,6 +122,9 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
 
 
 int main(){
+    const uint32_t M=NO_OF_ROWS;
+    const uint32_t capacity=256;
+    Table * table= create_db("f1.db",M,capacity);
 
     while (true){
 

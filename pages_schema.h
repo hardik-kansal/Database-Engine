@@ -3,7 +3,6 @@
 #define username_size_fixed 8
 
 #include "enums.h"
-#include "pager.h"
 #include "headerfiles.h"
 
 
@@ -25,9 +24,11 @@ struct Page {
     uint8_t data[PAGE_SIZE - 16]; 
     // in case of interior pages, no of pages-> depends on M value
     
-};
+}__attribute__((packed)); // no padding
 
 
+
+struct Pager; // forward declaration to avoid circular include
 
 struct Table{
     uint32_t numOfPages;

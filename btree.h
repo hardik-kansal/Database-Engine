@@ -13,5 +13,13 @@ struct pageNode{
     uint8_t data[PAGE_SIZE - 16]; 
     bool dirty;
 };
+class Bplustrees{
+    private:
+        pageNode* root;
+    public:
+        Bplustrees(pageNode* root){
+            this->root=root;
+        }
+};
 
 #endif
