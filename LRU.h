@@ -3,22 +3,22 @@
 #include "btree.h"
 #include "headerfiles.h"
 #include <unordered_map>
+#include "pager.h"
 using namespace std;
-
+struct Node{
+    uint32_t key;
+    pageNode* value;
+    Node* next;
+    Node* prev;
+    Node(uint32_t  key,pageNode* value){
+        this->key=key;
+        this->value=value;
+        next=nullptr;
+        prev=nullptr;
+    }
+};
 class LRUCache {
-    private:
-        struct Node{
-            uint32_t key;
-            pageNode* value;
-            Node* next;
-            Node* prev;
-            Node(uint32_t  key,pageNode* value){
-                this->key=key;
-                this->value=value;
-                next=nullptr;
-                prev=nullptr;
-            }
-        };
+public:
         uint32_t  capacity;
         uint32_t  count=0;
         unordered_map<uint32_t ,Node*> m;
@@ -39,7 +39,6 @@ class LRUCache {
                 dNode->next=nullptr;
         }
     
-    public:
         LRUCache(uint32_t capacity) {
             this->capacity=capacity;
             head=new Node(0,nullptr);

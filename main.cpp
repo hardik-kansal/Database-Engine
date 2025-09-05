@@ -34,14 +34,7 @@ void read_input(InputBuffer* inputBuffer){
 }
 
 
-MetaCommandResult do_meta_command(InputBuffer* input_buffer) {
-    if (strcmp(input_buffer->buffer, ".exit") == 0) {
-      exit(EXIT_SUCCESS);
-    }
-    else {
-      return META_COMMAND_UNRECOGNIZED_COMMAND;
-    }
-  }
+
   
 PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) {
     if (strcmp(input_buffer->buffer, "select") == 0) {
@@ -65,20 +58,20 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
   }
 
   
-// executeResult execute_statement(Statement* statement,Table* table) {
-//     switch (statement->type) {
-//       case (STATEMENT_INSERT):
-//         return execute_insert(statement,table);
-//         break;
-//       case (STATEMENT_SELECT):
-//         return execute_select(statement,table);
-//         break;
-//       case (STATEMENT_MODIFY):
-//       return execute_modify(statement,table);
-//       break;
-//     }
-//     return EXECUTE_SUCCESS;
-// }
+executeResult execute_statement(Statement* statement,Table* table) {
+    switch (statement->type) {
+      case (STATEMENT_INSERT):
+        // return execute_insert(statement,table);
+        break;
+      case (STATEMENT_SELECT):
+        // return execute_select(statement,table);
+        break;
+      case (STATEMENT_MODIFY):
+        // return execute_modify(statement,table);
+      break;
+    }
+    return EXECUTE_SUCCESS;
+}
 
 
 Pager* pager_open(const char* filename,const uint32_t &M,uint32_t capacity) {
@@ -102,9 +95,9 @@ Pager* pager_open(const char* filename,const uint32_t &M,uint32_t capacity) {
     pager->file_length = file_length;
     pager->lruCache=lru;
     return pager;
-  }
+}
 
-  Table* create_db(const char* filename,const uint32_t &M,uint32_t capacity){ // in c c++ string returns address, so either use string class or char* or char arr[]
+Table* create_db(const char* filename,const uint32_t &M,uint32_t capacity){ // in c c++ string returns address, so either use string class or char* or char arr[]
       Table* table=new Table();
       Pager* pager=pager_open(filename,M,capacity);
       int numOfPages=(pager->file_length)/PAGE_SIZE;
@@ -112,9 +105,19 @@ Pager* pager_open(const char* filename,const uint32_t &M,uint32_t capacity) {
       table->pager=pager;
       return table;
   }
+void close_db(Table* table) {
+    table->pager->flushAll();
+}
 
-
-
+MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
+    if (strcmp(input_buffer->buffer, ".exit") == 0) {
+        close_db(table);
+        exit(EXIT_SUCCESS);
+    }
+    else {
+        return META_COMMAND_UNRECOGNIZED_COMMAND;
+    }
+}
 
 
 
@@ -132,7 +135,7 @@ int main(){
         print_prompt();
         read_input(inputBuffer);
         if(inputBuffer->buffer[0]=='.'){
-            switch (do_meta_command(inputBuffer)){
+            switch (do_meta_command(inputBuffer,table)){
                 case META_COMMAND_UNRECOGNIZED_COMMAND:
                     cout<<"META_COMMAND_UNRECOGNIZED_COMMAND"<<endl;
                     exit(EXIT_FAILURE);
@@ -149,19 +152,19 @@ int main(){
             case PREPARE_SUCCESS:
                 break;
         }
-        // switch(execute_statement(statement,table)){
-        //     case EXECUTE_SUCCESS:
-        //         cout<<" :success"<<endl;
-        //         break;
-        //     case EXECUTE_UNRECOGNIZED_STATEMENT:
-        //         cout<<" :failed"<<endl;
-        //         cout<<"REASON: "<<"EXECUTE_UNRECOGNIZED_STATEMENT"<<endl;
-        //         exit(EXIT_FAILURE);
-        //     case EXECUTE_MAX_ROWS:
-        //         cout<<" :failed"<<endl;
-        //         cout<<"REASON: "<<"EXECUTE_MAX_ROWS"<<endl;
-        //         exit(EXIT_FAILURE);
-        // }
+        switch(execute_statement(statement,table)){
+            case EXECUTE_SUCCESS:
+                cout<<" :success"<<endl;
+                break;
+            case EXECUTE_UNRECOGNIZED_STATEMENT:
+                cout<<" :failed"<<endl;
+                cout<<"REASON: "<<"EXECUTE_UNRECOGNIZED_STATEMENT"<<endl;
+                exit(EXIT_FAILURE);
+            case EXECUTE_MAX_ROWS:
+                cout<<" :failed"<<endl;
+                cout<<"REASON: "<<"EXECUTE_MAX_ROWS"<<endl;
+                exit(EXIT_FAILURE);
+        }
         delete inputBuffer;
         delete statement;
         
