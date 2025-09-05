@@ -1,10 +1,7 @@
 #include <bits/stdc++.h>
 #include "enums.h"
 #include "pages_schema.h"
-#include <cstdlib>
-#include <cstddef>   
-#include <unistd.h> // read(), write(), close()
-#include <fcntl.h> //open(), O_CREAT
+#include "headerfiles.h"
 
 using namespace std;
 
