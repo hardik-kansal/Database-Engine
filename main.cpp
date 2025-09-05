@@ -47,35 +47,19 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
     }
     if (strncmp(input_buffer->buffer, "insert",6) == 0) {   // strncp reads only first 6 bytes
       statement->type = STATEMENT_INSERT;
-      int args_assigned=sscanf(input_buffer->buffer,"insert %ld %s",&(statement->row.id),statement->row.username);
+      int args_assigned=sscanf(input_buffer->buffer,"insert %lu %s",&(statement->row.id),statement->row.username);
       if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
       return PREPARE_SUCCESS;
     }
     if (strncmp(input_buffer->buffer, "modify",6) == 0) {   // strncp reads only first 6 bytes
       statement->type = STATEMENT_MODIFY;
-      int args_assigned=sscanf(input_buffer->buffer,"modify %ld %s",&(statement->row.id),statement->row.username);
+      int args_assigned=sscanf(input_buffer->buffer,"modify %lu %s",&(statement->row.id),statement->row.username);
       if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
       return PREPARE_SUCCESS;
     }
   
     return PREPARE_UNRECOGNIZED_STATEMENT;
   }
-
-  
-executeResult execute_statement(Statement* statement,Table* table) {
-    switch (statement->type) {
-      case (STATEMENT_INSERT):
-        // return execute_insert(statement,table);
-        break;
-      case (STATEMENT_SELECT):
-        // return execute_select(statement,table);
-        break;
-      case (STATEMENT_MODIFY):
-        // return execute_modify(statement,table);
-      break;
-    }
-    return EXECUTE_SUCCESS;
-}
 
 
 Pager* pager_open(const char* filename,const uint32_t &M,uint32_t capacity) {
@@ -123,6 +107,32 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
     else {
         return META_COMMAND_UNRECOGNIZED_COMMAND;
     }
+}
+
+executeResult execute_insert(Statement* statement, Table* table) {
+    table->bplusTrees->insert(statement->row.id, statement->row.id);
+    return EXECUTE_SUCCESS;
+}
+
+executeResult execute_select(Statement* statement, Table* table) {
+    table->bplusTrees->printTree();
+    return EXECUTE_SUCCESS;
+}
+
+executeResult execute_modify(Statement* statement, Table* table) {
+    return EXECUTE_SUCCESS;
+}
+
+executeResult execute_statement(Statement* statement, Table* table) {
+    switch (statement->type) {
+        case (STATEMENT_INSERT):
+            return execute_insert(statement, table);
+        case (STATEMENT_SELECT):
+            return execute_select(statement, table);
+        case (STATEMENT_MODIFY):
+            return execute_modify(statement, table);
+    }
+    return EXECUTE_SUCCESS;
 }
 
 

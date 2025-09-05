@@ -15,12 +15,24 @@ class Bplustrees{
     public:
         Bplustrees(Pager*pager,const uint32_t M){
             this->pager=pager;
-            this->root=pager->getPage(1);
             this->MAX_KEYS=M-1;
             this->MIN_KEYS = ceil((M - 1) / 2.0);
+            
+            // Initialize root page if it doesn't exist
+            this->root = pager->getPage(1);
+            if(this->root == nullptr) {
+                // Create root page
+                this->root = new pageNode();
+                this->root->pageNumber = 1;
+                this->root->type = PAGE_TYPE_LEAF;
+                this->root->rowCount = 0;
+                this->root->dirty = true;
+                pager->lruCache->put(1, this->root);
+            }
         }
 
-        uint32_t search(uint8_t key){
+        // id is key.
+        uint32_t search(uint64_t key){
             pageNode* curr =root;
             while(curr->type!=PAGE_TYPE_LEAF){
                 uint8_t index=ub(curr->keys,NO_OF_ROWS,key);
@@ -31,7 +43,7 @@ class Bplustrees{
         void printNode(pageNode* node){
             if(node==nullptr)return;
             for(auto &val:node->keys){
-                cout<<val<<' ';
+                if(val!=0)cout<<val<<' ';
             }
         }
         void printTree() {
@@ -47,50 +59,51 @@ class Bplustrees{
                     if (!q.empty()) q.push(nullptr);
                 } else {
                     printNode(node);
-                    cout << " --- ";
+                    cout << " ";
                     for (auto &val : node->data) {
-                        q.push(pager->getPage(val));
+                        if(val!=0)q.push(pager->getPage(val));
                     }
                 }
             }
         }
-        /*
-        void insert(uint8_t key,){
+        
+        void insert(uint64_t key,uint64_t value){
             vector<pageNode*> path;
             pageNode* curr = root;
             path.push_back(curr);
     
             while (curr->type!=PAGE_TYPE_LEAF) {
                 int idx = ub(curr->keys,NO_OF_ROWS,key);
-                curr = getPage(curr->data[idx]);
+                curr = pager->getPage(curr->data[idx]);
                 path.push_back(curr);
             }
             int idx = lb(curr->keys,NO_OF_ROWS,key);
+
+
             if(idx<NO_OF_ROWS && curr->keys[idx]==key){
-                curr->pos[idx]=pos;
+                curr->data[idx]=value;
                 return;
             }
-            curr->keys.insert(curr->keys.begin() + idx, key);
-            curr->pos.insert(curr->pos.begin() + idx, pos);
-            if (curr->keys.size() > MAX_KEYS) {
-                Node<T>* newLeaf = new Node<T>(true);
+
+            // curr->keys.insert(curr->keys.begin() + idx, key);
+            // curr->pos.insert(curr->pos.begin() + idx, pos);
+            // if (curr->keys.size() > MAX_KEYS) {
+            //     Node<T>* newLeaf = new Node<T>(true);
     
-                int mid = (curr->keys.size() + 1) / 2;
-                newLeaf->keys.assign(curr->keys.begin() + mid, curr->keys.end());
-                newLeaf->pos.assign(curr->pos.begin() + mid, curr->pos.end());
+            //     int mid = (curr->keys.size() + 1) / 2;
+            //     newLeaf->keys.assign(curr->keys.begin() + mid, curr->keys.end());
+            //     newLeaf->pos.assign(curr->pos.begin() + mid, curr->pos.end());
     
-                curr->keys.resize(mid);
-                curr->pos.resize(mid);
+            //     curr->keys.resize(mid);
+            //     curr->pos.resize(mid);
     
-                newLeaf->next = curr->next;
-                curr->next = newLeaf;
-                insertInternal(path, newLeaf->keys[0], newLeaf);
-            }
-            
-    
+            //     newLeaf->next = curr->next;
+            //     curr->next = newLeaf;
+            //     insertInternal(path, newLeaf->keys[0], newLeaf);
+            // }  
         }
-        */
         
+
         // insert - modify 
         // delete
 
