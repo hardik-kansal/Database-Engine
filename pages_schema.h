@@ -21,7 +21,9 @@ struct Page {
     uint32_t nextPage;
     uint16_t rowCount;
     uint8_t reserved[5];
-    uint8_t data[PAGE_SIZE - 16]; 
+    ssize_t keys[NO_OF_ROWS]; 
+    ssize_t data[NO_OF_ROWS]; 
+
     // in case of interior pages, no of pages-> depends on M value
     
 }__attribute__((packed)); // no padding
