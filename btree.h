@@ -28,6 +28,32 @@ class Bplustrees{
             }
             return curr->pageNumber;
         }
+        void printNode(pageNode* node){
+            if(node==nullptr)return;
+            for(auto &val:node->keys){
+                cout<<val<<' ';
+            }
+        }
+        void printTree() {
+            pageNode* curr = root;
+            queue<pageNode*> q;
+            q.push(curr);
+            q.push(nullptr);
+            while (!q.empty()) {
+                pageNode* node = q.front();
+                q.pop();
+                if (node == nullptr) {
+                    cout << endl;
+                    if (!q.empty()) q.push(nullptr);
+                } else {
+                    printNode(node);
+                    cout << " --- ";
+                    for (auto &val : node->data) {
+                        q.push(pager->getPage(val));
+                    }
+                }
+            }
+        }
 
 };
 

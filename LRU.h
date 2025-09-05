@@ -3,6 +3,9 @@
 #include "headerfiles.h"
 using namespace std;
 
+// TO_DO 
+// flush page when deleted.
+
 struct Node{
     uint32_t key;
     pageNode* value;

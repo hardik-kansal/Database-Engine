@@ -5,7 +5,6 @@
 #include "btree.h"
 
 struct Table{
-    uint32_t numOfPages;
     Pager* pager;
     Bplustrees* bplusTrees;
 };
@@ -99,6 +98,8 @@ Pager* pager_open(const char* filename,const uint32_t &M,uint32_t capacity) {
     pager->file_descriptor = fd;
     pager->file_length = file_length;
     pager->lruCache=lru;
+    int numOfPages=(pager->file_length)/PAGE_SIZE;
+    pager->numOfPages=numOfPages;
     return pager;
 }
 
@@ -106,8 +107,6 @@ Table* create_db(const char* filename,const uint32_t &M,uint32_t capacity){ // i
       Table* table=new Table();
       Pager* pager=pager_open(filename,M,capacity);
       Bplustrees* bplusTrees=new Bplustrees(pager,M);
-      int numOfPages=(pager->file_length)/PAGE_SIZE;
-      table->numOfPages=numOfPages;
       table->pager=pager;
       table->bplusTrees=bplusTrees;
       return table;

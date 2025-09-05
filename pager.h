@@ -10,9 +10,12 @@ struct Pager{
     int file_descriptor;  // 4 bytes
     off_t file_length; // 8 bytes
     LRUCache* lruCache; // 8 bytes
+    uint32_t numOfPages;
+
 
     // off_t long long int
     pageNode* getPage(uint32_t page_no){
+        if(page_no>this->numOfPages)return nullptr;
         if(this->lruCache->get(page_no)!=nullptr)return this->lruCache->get(page_no);
         else{
             off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
