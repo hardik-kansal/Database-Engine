@@ -3,6 +3,8 @@
 #include "pager.h"
 #include "headerfiles.h"
 #include "btree.h"
+#include "utils.h"
+
 
 struct Table{
     Pager* pager;

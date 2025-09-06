@@ -4,8 +4,9 @@
 using namespace std;
 
 // TO_DO 
-// flush page when deleted.
+// flush page while deleted
 
+// key is page_no uint32_t
 struct Node{
     uint32_t key;
     pageNode* value;

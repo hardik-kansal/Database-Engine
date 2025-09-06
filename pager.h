@@ -3,6 +3,8 @@
 #include "LRU.h"
 #include "headerfiles.h"
 #include "pages_schema.h"
+#include "utils.h"
+
 
 // total size -> 24 bytes
 struct Pager{
@@ -29,9 +31,12 @@ struct Pager{
             node->pageNumber = rawPage.pageNumber;
             node->type = static_cast<PageType>(rawPage.type); 
             // c++ stores in file as 0,1 on retrieving error if not typecast.
-
-
-            node->rowCount = rawPage.rowCount;
+            node->rowCount = rawPage.rowCount; 
+            node->freeStart=rawPage.freeStart; 
+            node->freeEnd=rawPage.freeEnd; 
+            memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *(node->rowCount)); 
+            memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE);
+            
             node->dirty=false;
             
             this->lruCache->put(page_no,node);
@@ -58,15 +63,15 @@ struct Pager{
         }
     }
 
-    // uint8_t getRow(uint16_t id,uint32_t page_no){
+    uint8_t getRow(uint16_t id,uint32_t page_no){
 
-    //     pageNode* page=getPage(page_no);
-    //     if(page->type!=PAGE_TYPE_LEAF){cout<<"INTERIOR PAGE ACCESSED FOR ROW";exit(EXIT_FAILURE);}
-    //     uint16_t index=lb(page->keys,NO_OF_ROWS,id);
-    //     if(index==NO_OF_ROWS) return -1;
-    //     return index;
+        pageNode* page=getPage(page_no);
+        if(page->type!=PAGE_TYPE_LEAF){cout<<"INTERIOR PAGE ACCESSED FOR ROW";exit(EXIT_FAILURE);}
+        uint16_t index=lb(page->slots,page->rowCount,id);
+        if(index==page->rowCount) return -1;
+        return index;
       
-    // }
+    }
 
  };
 
