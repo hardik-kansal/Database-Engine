@@ -17,7 +17,7 @@ const uint16_t PAGE_HEADER_SIZE = 14;
 struct RowSlot {
     uint64_t key;      // 8 bytes (row ID)
     uint16_t offset;   // 2 bytes (where username starts in payload)
-    uint16_t length;   // 2 bytes (length of username)
+    uint32_t length;   // 4 bytes (length of username)
 };
 const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE 
                                 - PAGE_HEADER_SIZE  

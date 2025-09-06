@@ -4,7 +4,7 @@
 #include "enums.h"
 #include "pager.h"
 
-
+// no of rows -> uint16_t
 class Bplustrees{
     private:
         Pager* pager;
@@ -30,20 +30,21 @@ class Bplustrees{
                 pager->lruCache->put(1, this->root);
             }
         }
-        /*
+
         // id is key.
-        uint32_t search(uint16_t key){
+        uint32_t search(uint64_t key){
             pageNode* curr =root;
             while(curr->type!=PAGE_TYPE_LEAF){
-                uint16_t index=ub(curr->keys,NO_OF_ROWS,key);
-                curr=pager->getPage(curr->data[index]);
+                uint16_t index=ub(curr->slots,curr->rowCount,key);
+                curr=pager->getPage(pager->getPageNoPayload(curr,index));
             }
             return curr->pageNumber;
         }
+                
         void printNode(pageNode* node){
             if(node==nullptr)return;
-            for(auto &val:node->keys){
-                if(val!=0)cout<<val<<' ';
+            for(uint16_t i=0;i<node->rowCount;i++){
+                cout<<node->slots[i].key<<' ';
             }
         }
         void printTree() {
@@ -60,13 +61,13 @@ class Bplustrees{
                 } else {
                     printNode(node);
                     cout << " ";
-                    for (auto &val : node->data) {
-                        if(val!=0)q.push(pager->getPage(val));
+                    for (uint16_t i=0;i<node->rowCount;i++) {
+                        q.push(pager->getPage(pager->getPageNoPayload(node,i)));
                     }
                 }
             }
         }
-        
+        /*
         void insert(uint16_t key,uint16_t value){
             vector<pageNode*> path;
             pageNode* curr = root;

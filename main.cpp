@@ -117,7 +117,7 @@ executeResult execute_insert(Statement* statement, Table* table) {
 }
 
 executeResult execute_select(Statement* statement, Table* table) {
-    // table->bplusTrees->printTree();
+    table->bplusTrees->printTree();
     return EXECUTE_SUCCESS;
 }
 

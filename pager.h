@@ -73,6 +73,15 @@ struct Pager{
       
     }
 
+    uint32_t getPageNoPayload(pageNode* curr,uint16_t index){
+
+        uint16_t offset=curr->slots[index].offset;
+        uint32_t length=curr->slots[index].length;
+        uint32_t value;
+        memcpy(&value, curr->payload + offset, sizeof(uint32_t));        
+        return value;
+    }
+
  };
 
 
