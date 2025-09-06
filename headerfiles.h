@@ -22,6 +22,9 @@ struct RowSlot {
 const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE 
                                 - PAGE_HEADER_SIZE  
                                 - sizeof(RowSlot) * MAX_ROWS ;
+const uint16_t FREE_START_DEFAULT =PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
+const uint16_t FREE_END_DEFAULT =PAGE_SIZE;
+
 
 struct pageNode {
     uint32_t pageNumber;    // 4

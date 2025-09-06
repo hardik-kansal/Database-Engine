@@ -27,6 +27,8 @@ class Bplustrees{
                 this->root->type = PAGE_TYPE_LEAF;
                 this->root->rowCount = 0;
                 this->root->dirty = true;
+                this->root->freeStart=FREE_START_DEFAULT;
+                this->root->freeEnd=FREE_END_DEFAULT;
                 pager->lruCache->put(1, this->root);
             }
         }
