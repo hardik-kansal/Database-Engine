@@ -11,19 +11,27 @@
 using namespace std;
 
 
-const uint16_t ROW_SIZE = 16;
 const uint16_t PAGE_SIZE = 4096;
-const uint16_t PAGE_HEADER_SIZE = 16;
-const uint8_t NO_OF_ROWS = (PAGE_SIZE-PAGE_HEADER_SIZE)/ROW_SIZE;
+const uint16_t PAGE_HEADER_SIZE = 14;
+#define MAX_ROWS  128
 
-struct pageNode{
-    uint32_t pageNumber;
-    PageType type;
-    uint32_t nextPage;
-    uint16_t rowCount;
-    uint8_t reserved[5];
-    uint64_t keys[NO_OF_ROWS]; 
-    uint64_t data[NO_OF_ROWS]; 
+struct RowSlot {
+    uint64_t key;      // 8 bytes (row ID)
+    uint16_t offset;   // 2 bytes (where username starts in payload)
+    uint16_t length;   // 2 bytes (length of username)
+};
+const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE 
+                                - PAGE_HEADER_SIZE  
+                                - sizeof(RowSlot) * MAX_ROWS ;
+
+struct pageNode {
+    uint32_t pageNumber;    // 4
+    PageType type;          // 4 since int declarartion
+    uint16_t rowCount;      // 2 no of rows
+    uint16_t freeStart;     // 2 (start of free space in payload)
+    uint16_t freeEnd;       // 2 (end of free space in payload)
+    RowSlot slots[MAX_ROWS];  // 128 *12 = 1536
+    char payload[MAX_PAYLOAD_SIZE];
     bool dirty;
 };
 

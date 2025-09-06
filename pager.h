@@ -30,11 +30,8 @@ struct Pager{
             node->type = static_cast<PageType>(rawPage.type); 
             // c++ stores in file as 0,1 on retrieving error if not typecast.
 
-            node->nextPage = rawPage.nextPage;
+
             node->rowCount = rawPage.rowCount;
-            memcpy(node->reserved, rawPage.reserved, sizeof(rawPage.reserved));
-            memcpy(node->keys, rawPage.keys, sizeof(rawPage.keys));
-            memcpy(node->data, rawPage.data, sizeof(rawPage.data));
             node->dirty=false;
             
             this->lruCache->put(page_no,node);
@@ -61,15 +58,15 @@ struct Pager{
         }
     }
 
-    uint8_t getRow(uint64_t id,uint32_t page_no){
+    // uint8_t getRow(uint16_t id,uint32_t page_no){
 
-        pageNode* page=getPage(page_no);
-        if(page->type!=PAGE_TYPE_LEAF){cout<<"INTERIOR PAGE ACCESSED FOR ROW";exit(EXIT_FAILURE);}
-        uint8_t index=lb(page->keys,NO_OF_ROWS,id);
-        if(index==NO_OF_ROWS) return -1;
-        return index;
+    //     pageNode* page=getPage(page_no);
+    //     if(page->type!=PAGE_TYPE_LEAF){cout<<"INTERIOR PAGE ACCESSED FOR ROW";exit(EXIT_FAILURE);}
+    //     uint16_t index=lb(page->keys,NO_OF_ROWS,id);
+    //     if(index==NO_OF_ROWS) return -1;
+    //     return index;
       
-    }
+    // }
 
  };
 

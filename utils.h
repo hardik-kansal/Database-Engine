@@ -1,7 +1,7 @@
 #ifndef UTILLS_H
 #define UTILLS_H
 
-uint8_t lb(uint64_t arr[],uint8_t n,uint64_t id){
+uint8_t lb(uint16_t arr[],uint16_t n,uint16_t id){
     uint8_t l=0;uint8_t h=n-1;
     uint8_t ans=n;
     while(h>=l){

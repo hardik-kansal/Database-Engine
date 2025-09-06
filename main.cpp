@@ -47,13 +47,13 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
     }
     if (strncmp(input_buffer->buffer, "insert",6) == 0) {   // strncp reads only first 6 bytes
       statement->type = STATEMENT_INSERT;
-      int args_assigned=sscanf(input_buffer->buffer,"insert %lu %s",&(statement->row.id),statement->row.username);
+      int args_assigned=sscanf(input_buffer->buffer,"insert %lu %s",&(statement->row.key),statement->row.payload);
       if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
       return PREPARE_SUCCESS;
     }
     if (strncmp(input_buffer->buffer, "modify",6) == 0) {   // strncp reads only first 6 bytes
       statement->type = STATEMENT_MODIFY;
-      int args_assigned=sscanf(input_buffer->buffer,"modify %lu %s",&(statement->row.id),statement->row.username);
+      int args_assigned=sscanf(input_buffer->buffer,"modify %lu %s",&(statement->row.key),statement->row.payload);
       if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
       return PREPARE_SUCCESS;
     }
@@ -110,12 +110,12 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
 }
 
 executeResult execute_insert(Statement* statement, Table* table) {
-    table->bplusTrees->insert(statement->row.id, statement->row.id);
+    // table->bplusTrees->insert(statement->row.key, statement->row.payload);
     return EXECUTE_SUCCESS;
 }
 
 executeResult execute_select(Statement* statement, Table* table) {
-    table->bplusTrees->printTree();
+    // table->bplusTrees->printTree();
     return EXECUTE_SUCCESS;
 }
 
@@ -141,7 +141,7 @@ executeResult execute_statement(Statement* statement, Table* table) {
 
 
 int main(){
-    const uint32_t M=NO_OF_ROWS;
+    const uint16_t M=14; // chnage it
     const uint32_t capacity=256;
     Table * table= create_db("f1.db",M,capacity);
 

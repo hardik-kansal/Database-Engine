@@ -1,33 +1,23 @@
 #ifndef pages_schema_H
 #define pages_schema_H
-#define username_size_fixed 8
 
 #include "enums.h"
 #include "headerfiles.h"
 
-
-
-// total size -> 16 bytes
 struct Row_schema{
-    uint64_t id; // 8 bytes
-    char username[username_size_fixed];    // 8 bytes
+    uint64_t key;
+    char payload[MAX_PAYLOAD_SIZE];
 };
 
-
-// DISK PAGE SCHEMA (FOR BOTH INTERIOR AND LEAF PAGES)
 struct Page {
-    uint32_t pageNumber;
-    PageType type;
-    uint32_t nextPage;
-    uint16_t rowCount;
-    uint8_t reserved[5];
-    ssize_t keys[NO_OF_ROWS]; 
-    ssize_t data[NO_OF_ROWS]; 
+    uint32_t pageNumber;    // 4
+    PageType type;          // 4 since int declarartion
+    uint16_t rowCount;      // 2 no of rows
+    uint16_t freeStart;     // 2 (start of free space in payload)
+    uint16_t freeEnd;       // 2 (end of free space in payload)
+    RowSlot slots[MAX_ROWS];  // 128 *12 = 1536
+    char payload[PAGE_SIZE - PAGE_HEADER_SIZE - sizeof(RowSlot) * MAX_ROWS];
 
-    // in case of interior pages, no of pages-> depends on M value
-    
-}__attribute__((packed)); // no padding
-
-
+}__attribute__((packed));
 
 #endif

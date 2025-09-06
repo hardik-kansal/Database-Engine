@@ -9,8 +9,8 @@ class Bplustrees{
     private:
         Pager* pager;
         pageNode* root;
-        uint32_t MAX_KEYS; 
-        uint32_t MIN_KEYS; 
+        uint16_t MAX_KEYS; 
+        uint16_t MIN_KEYS; 
 
     public:
         Bplustrees(Pager*pager,const uint32_t M){
@@ -30,12 +30,12 @@ class Bplustrees{
                 pager->lruCache->put(1, this->root);
             }
         }
-
+        /*
         // id is key.
-        uint32_t search(uint64_t key){
+        uint32_t search(uint16_t key){
             pageNode* curr =root;
             while(curr->type!=PAGE_TYPE_LEAF){
-                uint8_t index=ub(curr->keys,NO_OF_ROWS,key);
+                uint16_t index=ub(curr->keys,NO_OF_ROWS,key);
                 curr=pager->getPage(curr->data[index]);
             }
             return curr->pageNumber;
@@ -67,13 +67,13 @@ class Bplustrees{
             }
         }
         
-        void insert(uint64_t key,uint64_t value){
+        void insert(uint16_t key,uint16_t value){
             vector<pageNode*> path;
             pageNode* curr = root;
             path.push_back(curr);
     
             while (curr->type!=PAGE_TYPE_LEAF) {
-                int idx = ub(curr->keys,NO_OF_ROWS,key);
+                uint16_t idx = ub(curr->keys,NO_OF_ROWS,key);
                 curr = pager->getPage(curr->data[idx]);
                 path.push_back(curr);
             }
@@ -84,6 +84,7 @@ class Bplustrees{
                 curr->data[idx]=value;
                 return;
             }
+            */
 
             // curr->keys.insert(curr->keys.begin() + idx, key);
             // curr->pos.insert(curr->pos.begin() + idx, pos);
@@ -101,12 +102,11 @@ class Bplustrees{
             //     curr->next = newLeaf;
             //     insertInternal(path, newLeaf->keys[0], newLeaf);
             // }  
-        }
+        //}
         
 
-        // insert - modify 
         // delete
-
+    
 };
 
 #endif
