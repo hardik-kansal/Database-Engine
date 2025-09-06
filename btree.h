@@ -83,7 +83,7 @@ class Bplustrees{
             uint16_t idx = lb(curr->slots, curr->rowCount, key);
             if (idx < curr->rowCount && curr->slots[idx].key == key) {
                 // Key exists, update payload
-                updatePayload(curr, idx, payload);
+                // updatePayload(curr, idx, payload);
                 return;
             }
             // Insert new row
@@ -259,7 +259,7 @@ class Bplustrees{
             memcpy(newRoot->payload + FREE_START_DEFAULT-sizeof(uint32_t), &leftChild->pageNumber, sizeof(uint32_t));
             memcpy(newRoot->payload + FREE_START_DEFAULT - 2*sizeof(uint32_t), &rightChild->pageNumber, sizeof(uint32_t));
             
-            newRoot->freeStart = FREE_START_DEFAULT - 2 * sizeof(uint32_t);
+            newRoot->freeStart = FREE_START_DEFAULT - 2* sizeof(uint32_t);
             
             pager->lruCache->put(newRoot->pageNumber, newRoot);
             root = newRoot;
@@ -292,15 +292,15 @@ class Bplustrees{
             
             // Insert new slot
             internal->slots[index].key = key;
-            internal->slots[index].offset = internal->freeStart;
+            internal->slots[index].offset = internal->freeStart-sizeof(uint32_t);
             internal->slots[index].length = sizeof(uint32_t);
             
             // Store page number in payload
-            memcpy(internal->payload + internal->freeStart, &pageNumber, sizeof(uint32_t));
+            memcpy(internal->payload + internal->freeStart-sizeof(uint32_t), &pageNumber, sizeof(uint32_t));
             
             // Update metadata
             internal->rowCount++;
-            internal->freeStart += sizeof(uint32_t);
+            internal->freeStart -= sizeof(uint32_t);
         }
         
         // Split internal node and insert
@@ -369,31 +369,31 @@ class Bplustrees{
             newInternal->dirty = true;
         }
         
-        // Update payload for existing key
-        void updatePayload(pageNode* page, uint16_t index, const char* payload) {
-            uint32_t newLength = strlen(payload) + 1; // null character must be included
-            uint32_t oldLength = page->slots[index].length;
+        // // Update payload for existing key
+        // void updatePayload(pageNode* page, uint16_t index, const char* payload) {
+        //     uint32_t newLength = strlen(payload) + 1; // null character must be included
+        //     uint32_t oldLength = page->slots[index].length;
             
-            if (newLength <= oldLength) {
-                memcpy(page->payload + page->slots[index].offset, payload, newLength);
-                page->slots[index].length = newLength;
-            } else {
-                // Need more space, check if available
-                uint32_t availableSpace = page->freeEnd - page->freeStart;
-                if (availableSpace >= newLength - oldLength) {
-                    // Move to end of free space
-                    page->slots[index].offset = page->freeStart;
-                    memcpy(page->payload + page->freeStart, payload, newLength);
-                    page->slots[index].length = newLength;
-                    page->freeStart += newLength;
-                } else {
-                    // Need to split page
-                    // This is a complex case - for now, just update in place
-                    memcpy(page->payload + page->slots[index].offset, payload, min(newLength, oldLength));
-                }
-            }
-            page->dirty = true;
-        }
+        //     if (newLength <= oldLength) {
+        //         memcpy(page->payload + page->slots[index].offset, payload, newLength);
+        //         page->slots[index].length = newLength;
+        //     } else {
+        //         // Need more space, check if available
+        //         uint32_t availableSpace = page->freeEnd - page->freeStart;
+        //         if (availableSpace >= newLength - oldLength) {
+        //             // Move to end of free space
+        //             page->slots[index].offset = page->freeStart;
+        //             memcpy(page->payload + page->freeStart, payload, newLength);
+        //             page->slots[index].length = newLength;
+        //             page->freeStart += newLength;
+        //         } else {
+        //             // Need to split page
+        //             // This is a complex case - for now, just update in place
+        //             memcpy(page->payload + page->slots[index].offset, payload, min(newLength, oldLength));
+        //         }
+        //     }
+        //     page->dirty = true;
+        // }
 
         // delete
     

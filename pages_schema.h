@@ -7,7 +7,7 @@
 struct Row_schema{
     uint64_t key;
     char payload[MAX_PAYLOAD_SIZE];
-};
+}__attribute__((packed));
 
 struct Page {
     uint32_t pageNumber;    // 4

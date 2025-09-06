@@ -18,7 +18,7 @@ struct RowSlot {
     uint64_t key;      // 8 bytes (row ID)
     uint16_t offset;   // 2 bytes (where username starts in payload)
     uint32_t length;   // 4 bytes (length of username)
-};
+}__attribute__((packed));
 const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE 
                                 - PAGE_HEADER_SIZE  
                                 - sizeof(RowSlot) * MAX_ROWS ;
