@@ -34,7 +34,7 @@ struct Pager{
             node->rowCount = rawPage.rowCount; 
             node->freeStart=rawPage.freeStart; 
             node->freeEnd=rawPage.freeEnd; 
-            memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *(node->rowCount)); 
+            memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *(node->rowCount+1)); 
             memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE);
             
             node->dirty=false;
@@ -74,17 +74,9 @@ struct Pager{
     }
 
     uint32_t getPageNoPayload(pageNode* curr,uint16_t index){
-        if(curr->rowCount==index){
-            uint16_t offset=curr->slots[index-1].offset;
-            uint32_t length=curr->slots[index-1].length;
-            uint32_t value;
-            memcpy(&value, ((char*)curr) + offset-sizeof(uint32_t), sizeof(uint32_t));        
-            return value;
-        }
-        uint16_t offset=curr->slots[index].offset;
-        uint32_t length=curr->slots[index].length;
+
         uint32_t value;
-        memcpy(&value, ((char*)curr) + offset, sizeof(uint32_t));        
+        memcpy(&value, ((char*)curr) + PAGE_SIZE-(index+1)*sizeof(uint32_t), sizeof(uint32_t));        
         return value;
 
     }

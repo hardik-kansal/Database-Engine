@@ -59,6 +59,7 @@ class Bplustrees{
             pageNode* curr = root;
             queue<pageNode*> q;
             q.push(curr);
+
             q.push(nullptr);
             while (!q.empty()) {
                 pageNode* node = q.front();

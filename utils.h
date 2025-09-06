@@ -20,6 +20,7 @@ uint16_t ub(RowSlot arr[],uint16_t n,uint64_t id){
     if(n==0)return 0;
     uint16_t l=0;uint16_t h=n-1;
     uint16_t ans=n;
+    // uint16_t underflows to 2^16-1 so infinte loop => h<=n-1
     while(h>=l && h<=n-1){
         uint16_t mid=l+((h-l)>>1);
         if(arr[mid].key<=id)l=mid+1;
