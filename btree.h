@@ -9,14 +9,10 @@ class Bplustrees{
     private:
         Pager* pager;
         pageNode* root;
-        uint16_t MAX_KEYS; 
-        uint16_t MIN_KEYS; 
 
     public:
-        Bplustrees(Pager*pager,const uint32_t M){
+        Bplustrees(Pager*pager){
             this->pager=pager;
-            this->MAX_KEYS=M-1;
-            this->MIN_KEYS = ceil((M - 1) / 2.0);
             
             // Initialize root page if it doesn't exist
             this->root = pager->getPage(1);
@@ -62,51 +58,342 @@ class Bplustrees{
                     if (!q.empty()) q.push(nullptr);
                 } else {
                     printNode(node);
-                    cout << " ";
-                    for (uint16_t i=0;i<node->rowCount;i++) {
-                        q.push(pager->getPage(pager->getPageNoPayload(node,i)));
+                    bool check=node->type==PAGE_TYPE_LEAF;
+                    uint16_t len=(node->type==PAGE_TYPE_INTERIOR)?node->rowCount+1: node->rowCount;
+                    for (uint16_t i=0;i<len;i++) {
+                        if(!check)q.push(pager->getPage(pager->getPageNoPayload(node,i)));
                     }
                 }
             }
         }
-        /*
-        void insert(uint16_t key,uint16_t value){
+        // Insert a new row into the B+ tree
+        void insert(uint64_t key, const char* payload) {
             vector<pageNode*> path;
             pageNode* curr = root;
             path.push_back(curr);
     
-            while (curr->type!=PAGE_TYPE_LEAF) {
-                uint16_t idx = ub(curr->keys,NO_OF_ROWS,key);
-                curr = pager->getPage(curr->data[idx]);
+            // Navigate to the appropriate leaf page
+            while (curr->type != PAGE_TYPE_LEAF) {
+                uint16_t idx = ub(curr->slots, curr->rowCount, key);
+                curr = pager->getPage(pager->getPageNoPayload(curr, idx));
                 path.push_back(curr);
             }
-            int idx = lb(curr->keys,NO_OF_ROWS,key);
-
-
-            if(idx<NO_OF_ROWS && curr->keys[idx]==key){
-                curr->data[idx]=value;
+            
+            // Check if key already exists
+            uint16_t idx = lb(curr->slots, curr->rowCount, key);
+            if (idx < curr->rowCount && curr->slots[idx].key == key) {
+                // Key exists, update payload
+                updatePayload(curr, idx, payload);
                 return;
             }
-            */
-
-            // curr->keys.insert(curr->keys.begin() + idx, key);
-            // curr->pos.insert(curr->pos.begin() + idx, pos);
-            // if (curr->keys.size() > MAX_KEYS) {
-            //     Node<T>* newLeaf = new Node<T>(true);
-    
-            //     int mid = (curr->keys.size() + 1) / 2;
-            //     newLeaf->keys.assign(curr->keys.begin() + mid, curr->keys.end());
-            //     newLeaf->pos.assign(curr->pos.begin() + mid, curr->pos.end());
-    
-            //     curr->keys.resize(mid);
-            //     curr->pos.resize(mid);
-    
-            //     newLeaf->next = curr->next;
-            //     curr->next = newLeaf;
-            //     insertInternal(path, newLeaf->keys[0], newLeaf);
-            // }  
-        //}
+            // Insert new row
+            insertIntoLeaf(curr,idx,key, payload, path);
+        }
         
+        // Insert a row into a leaf page
+        void insertIntoLeaf(pageNode* leaf,uint16_t index,uint64_t key, const char* payload, vector<pageNode*>& path) {
+            uint32_t payloadLength = strlen(payload) + 1; // +1 for null terminator
+            
+            if (canInsertRow(leaf, payloadLength)) {
+                insertRowAt(leaf, index, key, payload, payloadLength);
+                leaf->dirty = true;
+            } else {
+                // Need to split the page
+                splitLeafAndInsert(leaf, index, key, payload, payloadLength, path);
+            }
+        }
+        
+        bool canInsertRow(pageNode* page, uint32_t payloadLength) {
+            if (page->rowCount >= MAX_ROWS) {
+                return false;
+            }
+            uint32_t availableSpace = page->freeEnd - page->freeStart;
+            return availableSpace >= payloadLength;
+        }
+        
+        // Insert a row at the specified index
+        void insertRowAt(pageNode* page,uint16_t index, uint64_t key, const char* payload, uint32_t payloadLength) {
+            
+            for (uint16_t i = page->rowCount; i > index; i--) {
+                page->slots[i] = page->slots[i - 1];
+            }
+            
+            // Insert new slot
+            page->slots[index].key = key;
+            page->slots[index].offset = page->freeStart-payloadLength;
+            page->slots[index].length = payloadLength;
+            
+            // Copy payload
+            memcpy(page->payload + page->freeStart-payloadLength, payload, payloadLength);
+            
+            // Update page metadata
+            page->rowCount++;
+            page->freeStart += payloadLength;
+        }
+        
+        // Split a leaf page and insert the new row
+        void splitLeafAndInsert(pageNode* leaf, uint16_t index, uint64_t key, const char* payload, uint32_t payloadLength, vector<pageNode*>& path) {
+            // Create new leaf page
+            pageNode* newLeaf = createNewLeafPage();
+            
+            // Calculate split point based on payload capacity
+            uint16_t splitIndex = findSplitIndex(leaf, payloadLength);
+            
+            // Move half the rows to the new leaf
+            moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
+            
+            // Insert the new row in the appropriate page
+            if (index < splitIndex) {
+                if (canInsertRow(leaf, payloadLength)) {
+                    insertRowAt(leaf, index, key, payload, payloadLength);
+                    leaf->dirty = true;
+                } else {
+                    // Need to split the page
+                    splitLeafAndInsert(leaf, index, key, payload, payloadLength, path);
+                }
+            } else {
+                if (canInsertRow(newLeaf, payloadLength)) {
+                    insertRowAt(newLeaf, index-splitIndex, key, payload, payloadLength);
+                    newLeaf->dirty = true;
+                } else {
+                    // Need to split the page
+                    splitLeafAndInsert(newLeaf, index-splitIndex, key, payload, payloadLength, path);
+                }
+            }
+            
+            // Update parent or create new root
+            if (path.size() == 1) {
+                // This is the root, create new root
+                createNewRoot(leaf, newLeaf);
+            } else {
+                // Insert into parent
+                insertIntoInternal(path[path.size() - 2], leaf, newLeaf, path);
+            }
+        }
+        
+        // Create a new leaf page
+        pageNode* createNewLeafPage() {
+            pageNode* newLeaf = new pageNode();
+            newLeaf->pageNumber = ++pager->numOfPages;
+            newLeaf->type = PAGE_TYPE_LEAF;
+            newLeaf->rowCount = 0;
+            newLeaf->freeStart = FREE_START_DEFAULT;
+            newLeaf->freeEnd = FREE_END_DEFAULT;
+            newLeaf->dirty = true;
+            
+            pager->lruCache->put(newLeaf->pageNumber, newLeaf);
+            return newLeaf;
+        }
+        
+        // Find the optimal split index based on payload capacity
+        uint16_t findSplitIndex(pageNode* page, uint32_t newPayloadLength) {
+            uint32_t totalPayloadUsed = 0;
+            uint16_t splitIndex = page->rowCount / 2; // Start with middle
+            
+            // Calculate payload usage up to split point
+            for (uint16_t i = 0; i < splitIndex; i++) {
+                totalPayloadUsed += page->slots[i].length;
+            }
+            
+            // Adjust split point to balance payload usage
+            uint32_t availableSpace = -FREE_END_DEFAULT + FREE_START_DEFAULT;
+            uint32_t targetSpace = availableSpace / 2;
+            
+            while (splitIndex > 0 && totalPayloadUsed > targetSpace) {
+                splitIndex--;
+                totalPayloadUsed -= page->slots[splitIndex].length;
+            }
+            
+            return splitIndex;
+        }
+        
+        // Move rows from old leaf to new leaf
+        void moveRowsToNewLeaf(pageNode* oldLeaf, pageNode* newLeaf, uint16_t splitIndex) {
+            uint16_t rowsToMove = oldLeaf->rowCount - splitIndex;
+            
+            // Copy slots
+            memcpy(newLeaf->slots, oldLeaf->slots + splitIndex, sizeof(RowSlot) * rowsToMove);
+            
+            // Copy payloads
+            uint32_t payloadOffset = FREE_START_DEFAULT;
+            for (uint16_t i = 0; i < rowsToMove; i++) {
+                uint32_t oldOffset = newLeaf->slots[i].offset;
+                uint32_t length = newLeaf->slots[i].length;
+                
+                memcpy(newLeaf->payload + payloadOffset-length, oldLeaf->payload + oldOffset, length);
+                newLeaf->slots[i].offset = payloadOffset-length;
+                payloadOffset -= length;
+            }
+            
+            // Update page metadata
+            newLeaf->rowCount = rowsToMove;
+            newLeaf->freeStart = payloadOffset;
+            oldLeaf->rowCount = splitIndex;
+            oldLeaf->freeStart = oldLeaf->freeStart+FREE_START_DEFAULT-payloadOffset;
+            
+            // // Recalculate old leaf free start
+            // for (uint16_t i = 0; i < oldLeaf->rowCount; i++) {
+            //     oldLeaf->freeStart = max(oldLeaf->freeStart, (uint16_t)(oldLeaf->slots[i].offset + oldLeaf->slots[i].length));
+            // }
+            
+            oldLeaf->dirty = true;
+            newLeaf->dirty = true;
+        }
+        
+        // Create a new root when splitting the root page
+        void createNewRoot(pageNode* leftChild, pageNode* rightChild) {
+            pageNode* newRoot = new pageNode();
+            newRoot->pageNumber = ++pager->numOfPages;
+            newRoot->type = PAGE_TYPE_INTERIOR;
+            newRoot->rowCount = 1;
+            newRoot->freeStart = FREE_START_DEFAULT;
+            newRoot->freeEnd = FREE_END_DEFAULT;
+            newRoot->dirty = true;
+            
+            // Set up the root's slots
+            newRoot->slots[0].key = rightChild->slots[0].key; // First key of right child
+            newRoot->slots[0].offset = FREE_START_DEFAULT-sizeof(uint32_t);
+            newRoot->slots[0].length = sizeof(uint32_t);
+            
+            // Store page numbers in payload
+            memcpy(newRoot->payload + FREE_START_DEFAULT-sizeof(uint32_t), &leftChild->pageNumber, sizeof(uint32_t));
+            memcpy(newRoot->payload + FREE_START_DEFAULT - 2*sizeof(uint32_t), &rightChild->pageNumber, sizeof(uint32_t));
+            
+            newRoot->freeStart = FREE_START_DEFAULT - 2 * sizeof(uint32_t);
+            
+            pager->lruCache->put(newRoot->pageNumber, newRoot);
+            root = newRoot;
+        }
+        
+        // Insert into internal node
+        void insertIntoInternal(pageNode* internal, pageNode* leftChild, pageNode* rightChild, vector<pageNode*>& path) {
+            uint64_t key = rightChild->slots[0].key;
+            uint32_t rightPageNumber = rightChild->pageNumber;
+            
+            // Find insertion point
+            uint16_t index = ub(internal->slots, internal->rowCount, key);
+            
+            if (canInsertRow(internal, sizeof(uint32_t))) {
+                // Insert into internal node
+                insertInternalRowAt(internal, index, key, rightPageNumber);
+                internal->dirty = true;
+            } else {
+                // Split internal node
+                splitInternalAndInsert(internal, index, key, rightPageNumber, path);
+            }
+        }
+        
+        // Insert a row into an internal node
+        void insertInternalRowAt(pageNode* internal, uint16_t index, uint64_t key, uint32_t pageNumber) {
+            // Shift slots
+            for (uint16_t i = internal->rowCount; i > index; i--) {
+                internal->slots[i] = internal->slots[i - 1];
+            }
+            
+            // Insert new slot
+            internal->slots[index].key = key;
+            internal->slots[index].offset = internal->freeStart;
+            internal->slots[index].length = sizeof(uint32_t);
+            
+            // Store page number in payload
+            memcpy(internal->payload + internal->freeStart, &pageNumber, sizeof(uint32_t));
+            
+            // Update metadata
+            internal->rowCount++;
+            internal->freeStart += sizeof(uint32_t);
+        }
+        
+        // Split internal node and insert
+        void splitInternalAndInsert(pageNode* internal, uint16_t index, uint64_t key, uint32_t pageNumber, vector<pageNode*>& path) {
+            // Create new internal page
+            pageNode* newInternal = new pageNode();
+            newInternal->pageNumber = ++pager->numOfPages;
+            newInternal->type = PAGE_TYPE_INTERIOR;
+            newInternal->rowCount = 0;
+            newInternal->freeStart = FREE_START_DEFAULT;
+            newInternal->freeEnd = FREE_END_DEFAULT;
+            newInternal->dirty = true;
+            
+            // Split the internal node
+            uint16_t splitIndex = internal->rowCount / 2;
+            uint64_t promoteKey = internal->slots[splitIndex].key;
+            
+            // Move half the entries to new internal node
+            moveInternalRowsToNew(internal, newInternal, splitIndex);
+            
+            // Insert the new entry
+            if (index < splitIndex) {
+                insertInternalRowAt(internal, index, key, pageNumber);
+            } else {
+                insertInternalRowAt(newInternal, index - splitIndex, key, pageNumber);
+            }
+            
+            // Update parent or create new root
+            if (path.size() == 1) {
+                createNewRoot(internal, newInternal);
+            } else {
+                insertIntoInternal(path[path.size() - 2], internal, newInternal, path);
+            }
+        }
+        
+        // Move rows from old internal to new internal
+        void moveInternalRowsToNew(pageNode* oldInternal, pageNode* newInternal, uint16_t splitIndex) {
+            uint16_t rowsToMove = oldInternal->rowCount - splitIndex;
+            
+            // Copy slots
+            memcpy(newInternal->slots, oldInternal->slots + splitIndex, sizeof(RowSlot) * rowsToMove);
+            
+            // Copy payloads
+            uint32_t payloadOffset = FREE_START_DEFAULT;
+            for (uint16_t i = 0; i < rowsToMove; i++) {
+                uint32_t oldOffset = newInternal->slots[i].offset;
+                uint32_t length = newInternal->slots[i].length;
+                
+                memcpy(newInternal->payload + payloadOffset, oldInternal->payload + oldOffset, length);
+                newInternal->slots[i].offset = payloadOffset;
+                payloadOffset += length;
+            }
+            
+            // Update metadata
+            newInternal->rowCount = rowsToMove;
+            newInternal->freeStart = payloadOffset;
+            oldInternal->rowCount = splitIndex;
+            oldInternal->freeStart = FREE_START_DEFAULT;
+            
+            // Recalculate old internal free start
+            for (uint16_t i = 0; i < oldInternal->rowCount; i++) {
+                oldInternal->freeStart = max(oldInternal->freeStart, (uint16_t)(oldInternal->slots[i].offset + oldInternal->slots[i].length));
+            }
+            
+            oldInternal->dirty = true;
+            newInternal->dirty = true;
+        }
+        
+        // Update payload for existing key
+        void updatePayload(pageNode* page, uint16_t index, const char* payload) {
+            uint32_t newLength = strlen(payload) + 1; // null character must be included
+            uint32_t oldLength = page->slots[index].length;
+            
+            if (newLength <= oldLength) {
+                memcpy(page->payload + page->slots[index].offset, payload, newLength);
+                page->slots[index].length = newLength;
+            } else {
+                // Need more space, check if available
+                uint32_t availableSpace = page->freeEnd - page->freeStart;
+                if (availableSpace >= newLength - oldLength) {
+                    // Move to end of free space
+                    page->slots[index].offset = page->freeStart;
+                    memcpy(page->payload + page->freeStart, payload, newLength);
+                    page->slots[index].length = newLength;
+                    page->freeStart += newLength;
+                } else {
+                    // Need to split page
+                    // This is a complex case - for now, just update in place
+                    memcpy(page->payload + page->slots[index].offset, payload, min(newLength, oldLength));
+                }
+            }
+            page->dirty = true;
+        }
 
         // delete
     

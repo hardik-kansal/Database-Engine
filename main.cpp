@@ -64,7 +64,7 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
   }
 
 
-Pager* pager_open(const char* filename,const uint32_t &M,uint32_t capacity) {
+Pager* pager_open(const char* filename,uint32_t capacity) {
     int fd = open(filename,
                   O_RDWR |      // Read/Write mode
                       O_CREAT,  // Create file if it does not exist
@@ -89,10 +89,10 @@ Pager* pager_open(const char* filename,const uint32_t &M,uint32_t capacity) {
     return pager;
 }
 
-Table* create_db(const char* filename,const uint32_t &M,uint32_t capacity){ // in c c++ string returns address, so either use string class or char* or char arr[]
+Table* create_db(const char* filename,uint32_t capacity){ // in c c++ string returns address, so either use string class or char* or char arr[]
       Table* table=new Table();
-      Pager* pager=pager_open(filename,M,capacity);
-      Bplustrees* bplusTrees=new Bplustrees(pager,M);
+      Pager* pager=pager_open(filename,capacity);
+      Bplustrees* bplusTrees=new Bplustrees(pager);
       table->pager=pager;
       table->bplusTrees=bplusTrees;
       return table;
@@ -112,7 +112,7 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
 }
 
 executeResult execute_insert(Statement* statement, Table* table) {
-    // table->bplusTrees->insert(statement->row.key, statement->row.payload);
+    table->bplusTrees->insert(statement->row.key, statement->row.payload);
     return EXECUTE_SUCCESS;
 }
 
@@ -143,9 +143,8 @@ executeResult execute_statement(Statement* statement, Table* table) {
 
 
 int main(){
-    const uint16_t M=14; // chnage it
     const uint32_t capacity=256;
-    Table * table= create_db("f1.db",M,capacity);
+    Table * table= create_db("f1.db",capacity);
 
     while (true){
 
