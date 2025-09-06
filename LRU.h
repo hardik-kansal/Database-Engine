@@ -58,13 +58,13 @@ public:
             else return nullptr;
         }
         
-        void put(uint32_t  key, pageNode* value) {
+        void put(uint32_t key, pageNode* value) {
             if(m.find(key)!=m.end()){
                 m[key]->value=value;
                 remove(m[key],m[key]->next);
                 insertStart(m[key]); 
                 }
-            else{
+            else{                          
                 Node* newNode=new Node(key,value);
                 m[key]=newNode;
                 if(count==capacity){                
