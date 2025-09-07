@@ -12,7 +12,7 @@ using namespace std;
 
 const uint16_t PAGE_SIZE = 4096;
 const uint16_t PAGE_HEADER_SIZE = 14;
-#define MAX_ROWS  2
+#define MAX_ROWS  3
 
 struct RowSlot {
     uint64_t key;      // 8 bytes (row ID)
