@@ -99,4 +99,4 @@ db >.exit
 
 ## File Overview Diagram (Logical)
 
-[](dbms.png)
+![DBMS Architecture](dbms3.png)
