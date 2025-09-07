@@ -147,7 +147,7 @@ class Bplustrees{
             // Create new leaf page
             pageNode* newLeaf = createNewLeafPage();
             // Calculate split point based on payload capacity
-            uint16_t splitIndex = findSplitIndex(leaf, payloadLength);
+            uint16_t splitIndex = findSplitIndex(leaf);
 
             // Move half the rows to the new leaf
             moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
@@ -192,7 +192,7 @@ class Bplustrees{
         }
         
         // Find the optimal split index based on payload capacity
-        uint16_t findSplitIndex(pageNode* page, uint32_t newPayloadLength) {
+        uint16_t findSplitIndex(pageNode* page) {
             uint32_t totalPayloadUsed = 0;
             uint16_t splitIndex = page->rowCount / 2; // Start with middle
             
@@ -237,10 +237,6 @@ class Bplustrees{
             oldLeaf->rowCount = splitIndex;
             oldLeaf->freeStart = oldLeaf->freeStart+FREE_START_DEFAULT-payloadOffset;
             
-            // // Recalculate old leaf free start
-            // for (uint16_t i = 0; i < oldLeaf->rowCount; i++) {
-            //     oldLeaf->freeStart = max(oldLeaf->freeStart, (uint16_t)(oldLeaf->slots[i].offset + oldLeaf->slots[i].length));
-            // }
             oldLeaf->type=PAGE_TYPE_LEAF;
             oldLeaf->dirty = true;
             newLeaf->dirty = true;
@@ -326,7 +322,7 @@ class Bplustrees{
             pageNode* newInternal = createNewInternalPage();
             
             // Split the internal node
-            uint16_t splitIndex = internal->rowCount / 2;
+            uint16_t splitIndex = findSplitIndex(internal);
             
             // Move half the entries to new internal node
             moveInternalRowsToNew(internal, newInternal, splitIndex);
@@ -374,43 +370,9 @@ class Bplustrees{
             oldInternal->rowCount = splitIndex;
             oldInternal->freeStart = oldInternal->freeStart+FREE_START_DEFAULT-payloadOffset;
             
-            // // Recalculate old internal free start
-            // for (uint16_t i = 0; i < oldInternal->rowCount; i++) {
-            //     oldInternal->freeStart = max(oldInternal->freeStart, (uint16_t)(oldInternal->slots[i].offset + oldInternal->slots[i].length));
-            // }
-            
             oldInternal->dirty = true;
             newInternal->dirty = true;
         }
-        
-        // // Update payload for existing key
-        // void updatePayload(pageNode* page, uint16_t index, const char* payload) {
-        //     uint32_t newLength = strlen(payload) + 1; // null character must be included
-        //     uint32_t oldLength = page->slots[index].length;
-            
-        //     if (newLength <= oldLength) {
-        //         memcpy(page->payload + page->slots[index].offset, payload, newLength);
-        //         page->slots[index].length = newLength;
-        //     } else {
-        //         // Need more space, check if available
-        //         uint32_t availableSpace = page->freeEnd - page->freeStart;
-        //         if (availableSpace >= newLength - oldLength) {
-        //             // Move to end of free space
-        //             page->slots[index].offset = page->freeStart;
-        //             memcpy(page->payload + page->freeStart, payload, newLength);
-        //             page->slots[index].length = newLength;
-        //             page->freeStart += newLength;
-        //         } else {
-        //             // Need to split page
-        //             // This is a complex case - for now, just update in place
-        //             memcpy(page->payload + page->slots[index].offset, payload, min(newLength, oldLength));
-        //         }
-        //     }
-        //     page->dirty = true;
-        // }
-
-        // delete
-    
 };
 
 #endif

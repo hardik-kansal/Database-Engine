@@ -12,7 +12,7 @@ struct Pager{
     int file_descriptor;  // 4 bytes
     off_t file_length; // 8 bytes
     LRUCache* lruCache; // 8 bytes
-    uint32_t numOfPages;
+    uint32_t numOfPages; // 4 bytes
 
 
     // off_t long long int

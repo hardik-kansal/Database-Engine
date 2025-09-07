@@ -12,7 +12,7 @@ using namespace std;
 
 const uint16_t PAGE_SIZE = 4096;
 const uint16_t PAGE_HEADER_SIZE = 14;
-#define MAX_ROWS  3
+#define MAX_ROWS  4
 
 struct RowSlot {
     uint64_t key;      // 8 bytes (row ID)
@@ -32,7 +32,7 @@ struct pageNode {
     uint16_t rowCount;      // 2 no of rows
     uint16_t freeStart;     // 2 (start of free space in payload)
     uint16_t freeEnd;       // 2 (end of free space in payload)
-    RowSlot slots[MAX_ROWS];  // 128 *12 = 1536
+    RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
     char payload[MAX_PAYLOAD_SIZE];
     bool dirty;
 };
