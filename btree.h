@@ -59,7 +59,7 @@ class Bplustrees{
             pageNode* curr = root;
             queue<pageNode*> q;
             q.push(curr);
-
+            
             q.push(nullptr);
             while (!q.empty()) {
                 pageNode* node = q.front();
@@ -72,7 +72,8 @@ class Bplustrees{
                     bool check=node->type==PAGE_TYPE_LEAF;
                     uint16_t len=(!check)?node->rowCount+1: node->rowCount;
                     for (uint16_t i=0;i<len;i++) {
-                        if(!check)q.push(pager->getPage(pager->getPageNoPayload(node,i)));
+                        uint32_t page_no=pager->getPageNoPayload(node,i);
+                        if(!check && page_no!=0)q.push(pager->getPage(page_no));
                     }
                 }
             }
@@ -175,14 +176,14 @@ class Bplustrees{
                 createNewRoot(leaf, newLeaf);
             } else {
                 // Insert into parent
-                insertIntoInternal(path[path.size() - 2], leaf, newLeaf, path);
+                path.pop_back();
+                insertIntoInternal(path[path.size() - 1], leaf, newLeaf, path);
             }
         }
         
         // Create a new leaf page
         pageNode* createNewLeafPage() {
             pageNode* newLeaf = new pageNode();
-            cout<<"newleaf: "<<pager->numOfPages;
             newLeaf->pageNumber = ++pager->numOfPages;
             newLeaf->type = PAGE_TYPE_LEAF;
             newLeaf->rowCount = 0;
@@ -312,10 +313,7 @@ class Bplustrees{
             internal->rowCount++;
             internal->freeStart -= sizeof(uint32_t);
         }
-        
-        // Split internal node and insert
-        void splitInternalAndInsert(pageNode* internal, uint16_t index, uint64_t key, uint32_t pageNumber, vector<pageNode*>& path) {
-            // Create new internal page
+        pageNode* createNewInternalPage(){
             pageNode* newInternal = new pageNode();
             newInternal->pageNumber = ++pager->numOfPages;
             newInternal->type = PAGE_TYPE_INTERIOR;
@@ -323,6 +321,14 @@ class Bplustrees{
             newInternal->freeStart = FREE_START_DEFAULT;
             newInternal->freeEnd = FREE_END_DEFAULT;
             newInternal->dirty = true;
+            pager->lruCache->put(newInternal->pageNumber, newInternal);
+            return newInternal;
+        }
+        
+        // Split internal node and insert
+        void splitInternalAndInsert(pageNode* internal, uint16_t index, uint64_t key, uint32_t pageNumber, vector<pageNode*>& path) {
+            // Create new internal page
+            pageNode* newInternal = createNewInternalPage();
             
             // Split the internal node
             uint16_t splitIndex = internal->rowCount / 2;
@@ -340,9 +346,12 @@ class Bplustrees{
             
             // Update parent or create new root
             if (path.size() == 1) {
+                internal->pageNumber=++pager->numOfPages;
+                pager->lruCache->put(internal->pageNumber, internal);
                 createNewRoot(internal, newInternal);
             } else {
-                insertIntoInternal(path[path.size() - 2], internal, newInternal, path);
+                path.pop_back();
+                insertIntoInternal(path[path.size() - 1], internal, newInternal, path);
             }
         }
         
@@ -359,7 +368,7 @@ class Bplustrees{
                 uint32_t oldOffset = newInternal->slots[i].offset;
                 uint32_t length = newInternal->slots[i].length;
                 
-                memcpy(((char*)newInternal) + payloadOffset-length, oldInternal->payload + oldOffset, length);
+                memcpy(((char*)newInternal) + payloadOffset-length, ((char*)oldInternal) + oldOffset, length);
                 newInternal->slots[i].offset = payloadOffset-length;
                 payloadOffset -= length;
             }
