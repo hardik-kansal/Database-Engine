@@ -11,6 +11,7 @@ class Bplustrees{
     private:
         Pager* pager;
         pageNode* root;
+        uint16_t M=(MAX_ROWS+1)/2-1; // min keys
 
     public:
         Bplustrees(Pager*pager){
@@ -372,6 +373,106 @@ class Bplustrees{
             
             oldInternal->dirty = true;
             newInternal->dirty = true;
+        }
+        void updateParentKey(pageNode* page,uint16_t idx,vector<pageNode*> &path,uint64_t prevKey){
+            if(idx==0 && path.size()>1){
+                pageNode* parent=path[path.size()-2];
+                uint16_t id=ub(parent->slots,parent->rowCount,prevKey);
+                if(id>0){
+                    parent->slots[id-1].key=page->slots[0].key;
+                    parent->dirty=true;
+                }    
+            }
+        }
+        // if(index 0 deleted and not root) then  index 1 is accesssed here.
+        void deleteIdxLeaf(pageNode* page, uint16_t idx,vector<pageNode*> &path){
+           // shift payload
+            uint32_t len=page->slots[idx].length;
+            uint16_t offset = page->slots[idx].offset;
+            if(offset!=page->freeStart){
+                memmove(((char*)page)+page->freeStart+len,((char*)page)+page->freeStart,page->slots[idx].offset-page->freeStart);
+            }
+            // memmove make sure correct copying overllaping intervals
+            // memcpy doesnt do it.
+            // shift rowSlot
+            for(uint16_t i=idx+1;i<page->rowCount;i++){
+                page->slots[i-1]=page->slots[i];
+                page->slots[i-1].offset+=len;
+            }
+            page->freeStart+=len;
+            page->rowCount--;
+            page->dirty=true;
+        }
+        // leaf
+        pageNode* getChild(pageNode* parent,uint64_t key){
+            uint32_t page_no=pager->getPageNoPayload(parent,ub(parent->slots,parent->rowCount,key));
+            return pager->getPage(page_no);
+        }
+        void deleteKey(uint64_t key){
+            vector<pageNode*> path;
+            pageNode* page=root;
+            path.push_back(root);
+            while(page->type!=PAGE_TYPE_LEAF){
+                page=getChild(page,key);
+                path.push_back(page);
+            }
+
+            uint16_t idx=lb(page->slots,page->rowCount,key);
+            if(idx==page->rowCount || page->slots[idx].key!=key){
+                cout<<"KEY DOES NOT EXIST"<<endl;
+                return;
+            }
+            if(page->rowCount-1>=M || path.size()==1){
+                uint64_t prevKey=page->slots[idx].key;
+                deleteIdxLeaf(page,idx,path);
+                updateParentKey(page,idx,path,prevKey);
+            }
+            else{
+                pageNode* parent=path[path.size()-2];
+                uint64_t prevPageKey=page->slots[idx].key;
+                uint16_t id=ub(parent->slots,parent->rowCount,prevPageKey);
+                // borroww right if exist and can do
+                if(id<parent->rowCount && pager->getPage(pager->getPageNoPayload(parent,id+1))->rowCount-1>=M){
+                    pageNode* rightSibling=pager->getPage(pager->getPageNoPayload(parent,id+1));
+                    uint32_t len=rightSibling->slots[0].length;
+                    uint16_t offset=rightSibling->slots[0].offset;
+                    uint64_t prevKey=rightSibling->slots[0].key;
+
+                    char* payload = new char[len];
+                    memcpy(payload,rightSibling->payload + offset,len);
+                    insertIntoLeaf(page,page->rowCount,prevKey,payload,path); 
+                    delete[] payload;
+                    // parent page is same for both leafs, so same path can be passed
+                    
+                    deleteIdxLeaf(rightSibling,0,path);
+                    updateParentKey(rightSibling,0,path,prevKey);
+                    deleteIdxLeaf(page,idx,path);
+                    updateParentKey(page,idx,path,prevPageKey);
+
+                }
+                // borrow left if exit and can do
+                else if(id>0 && pager->getPage(pager->getPageNoPayload(parent,id-1))->rowCount-1>=M){
+                    pageNode* leftSibling=pager->getPage(pager->getPageNoPayload(parent,id-1));
+                    uint32_t len=leftSibling->slots[leftSibling->rowCount-1].length;
+                    uint16_t offset=leftSibling->slots[leftSibling->rowCount-1].offset;
+                    uint64_t prevKey=leftSibling->slots[leftSibling->rowCount-1].key;
+
+                    char* payload = new char[len];
+                    memcpy(payload,leftSibling->payload + offset,len);
+                    insertIntoLeaf(page,0,prevKey,payload,path); 
+                    deleteIdxLeaf(page,1,path); 
+                    delete[] payload;
+                    deleteIdxLeaf(leftSibling,leftSibling->rowCount-1,path);
+                    updateParentKey(page,0,path,prevPageKey); 
+
+                }
+                // merge
+                else{
+
+                }              
+            }
+
+
         }
 };
 

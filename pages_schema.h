@@ -20,4 +20,8 @@ struct Page {
 
 }__attribute__((packed));
 
+// for internal nodes-> every slot index holds its left child in payload
+// for leaf nodes -> every slot index holds its value;
+// for internal nodes -> page->rowCount is rightmost child page_no in payload
+
 #endif
