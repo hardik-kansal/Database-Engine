@@ -2,7 +2,6 @@
 #define pager_H
 #include "LRU.h"
 #include "headerfiles.h"
-#include "pages_schema.h"
 #include "utils.h"
 
 

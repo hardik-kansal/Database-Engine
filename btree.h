@@ -1,7 +1,6 @@
 #ifndef btree_H
 #define btree_H
 #include "headerfiles.h"
-#include "enums.h"
 #include "pager.h"
 
 // no of rows -> uint16_t
@@ -466,8 +465,21 @@ class Bplustrees{
                     updateParentKey(page,0,path,prevPageKey); 
 
                 }
+                // to -do
+                // upadte rest parents to min value in right subtree
+                // freePage list -> implement in insert too
                 // merge
                 else{
+                    //merge right
+                    if(id<parent->rowCount){
+                        
+                    }
+                    else if(id>0){
+                        
+                    }
+                    // merge left
+                    // add to freelist page
+                    
 
                 }              
             }
