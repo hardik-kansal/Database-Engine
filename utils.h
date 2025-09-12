@@ -61,6 +61,9 @@ bool _check_big_(){
     return *(((uint8_t*)&test))!=1;
 }
 bool isBigEndian=_check_big_();
+
+//          !!!!!     VERY WRONG IMPLEMENTATION     !!!!!!
+
 // stored in little endianess
 void store_little(pageNode* node,char* buf){
     for(uint16_t i=0;i<PAGE_SIZE;i++){
