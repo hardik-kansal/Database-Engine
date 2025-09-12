@@ -22,20 +22,27 @@ struct Pager{
             off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
             if(offset<0)exit(EXIT_FAILURE);
             Page rawPage{};
-            ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
-            if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
+            if(isBigEndian){
+                char* buffer=new char[PAGE_SIZE];
+                ssize_t bytesRead = read(this->file_descriptor, buffer, PAGE_SIZE);
+                if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
+                read_big(&rawPage,buffer);
+            }
+            else{
+                ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
+                if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
+            }
 
-            
             pageNode* node = new pageNode();
-            node->pageNumber = rawPage.pageNumber;
-            node->type = static_cast<PageType>(rawPage.type); 
+            node->page.header.pageNumber = rawPage.header.pageNumber;
+            node->page.header.type = static_cast<PageType>(rawPage.header.type); 
             // c++ stores in file as 0,1 on retrieving error if not typecast.
-            node->rowCount = rawPage.rowCount; 
-            node->freeStart=rawPage.freeStart; 
-            node->freeEnd=rawPage.freeEnd; 
-            uint16_t len=(node->type==PAGE_TYPE_INTERIOR)?node->rowCount+1:node->rowCount;
-            memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *(len)); 
-            memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE);
+            node->page.header.rowCount = rawPage.header.rowCount; 
+            node->page.header.freeStart=rawPage.header.freeStart; 
+            node->page.header.freeEnd=rawPage.header.freeEnd; 
+            uint16_t len=(node->page.header.type==PAGE_TYPE_INTERIOR)?node->page.header.rowCount+1:node->page.header.rowCount;
+            memcpy(node->page.slots,rawPage.slots,sizeof(RowSlot) *(len)); 
+            memcpy(node->page.payload,rawPage.payload,MAX_PAYLOAD_SIZE);
             
             node->dirty=false;
             
@@ -44,14 +51,25 @@ struct Pager{
             return node;
         }
     }
-
+        // if usigned stored in char(signed) though overflow but still if read as uiint8
+        // still read as same original value.
+        // Power of 2's complement.
     void writePage(pageNode* node){
-        uint32_t page_no=node->pageNumber;
+        uint32_t page_no=node->page.header.pageNumber;
         off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
         if(offset<0)exit(EXIT_FAILURE);
-        ssize_t bytes_written = write(this->file_descriptor,node,PAGE_SIZE);
-        if (bytes_written<0) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
 
+        if(isBigEndian){
+            char* buffer=new char[PAGE_SIZE];
+            store_little(node,buffer);
+            ssize_t bytes_written = write(this->file_descriptor,buffer,PAGE_SIZE);
+            delete[] buffer;        
+            if (bytes_written<0) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
+        }
+        else{
+            ssize_t bytes_written = write(this->file_descriptor,node,PAGE_SIZE);       
+            if (bytes_written<0) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}  
+        }
     }
 
     void flushAll(){
@@ -65,10 +83,10 @@ struct Pager{
 
     uint8_t getRow(uint16_t id,uint32_t page_no){
 
-        pageNode* page=getPage(page_no);
-        if(page->type!=PAGE_TYPE_LEAF){cout<<"INTERIOR PAGE ACCESSED FOR ROW";exit(EXIT_FAILURE);}
-        uint16_t index=lb(page->slots,page->rowCount,id);
-        if(index==page->rowCount) return -1;
+        pageNode* pageNode=getPage(page_no);
+        if(pageNode->page.header.type!=PAGE_TYPE_LEAF){cout<<"INTERIOR PAGE ACCESSED FOR ROW";exit(EXIT_FAILURE);}
+        uint16_t index=lb(pageNode->page.slots,pageNode->page.header.rowCount,id);
+        if(index==pageNode->page.header.rowCount) return -1;
         return index;
       
     }

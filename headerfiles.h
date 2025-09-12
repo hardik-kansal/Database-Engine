@@ -8,6 +8,7 @@
 #include <unistd.h> // read(), write(), close()
 #include <fcntl.h> //open(), O_CREAT
 #include "enums.h"
+#include "structs.h"
 using namespace std;
 
 #endif

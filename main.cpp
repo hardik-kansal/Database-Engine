@@ -116,12 +116,12 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
 }
 
 executeResult execute_insert(Statement* statement, Table* table) {
-    table->bplusTrees->insert(statement->row.key, statement->row.payload);
+    // table->bplusTrees->insert(statement->row.key, statement->row.payload);
     return EXECUTE_SUCCESS;
 }
 
 executeResult execute_select(Statement* statement, Table* table) {
-    table->bplusTrees->printTree();
+    // table->bplusTrees->printTree();
     return EXECUTE_SUCCESS;
 }
 
