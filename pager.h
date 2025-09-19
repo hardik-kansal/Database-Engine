@@ -17,7 +17,7 @@ struct Pager{
     // off_t long long int
     pageNode* getPage(uint32_t page_no){
         if(page_no>this->numOfPages)return nullptr;
-        if(this->lruCache->get(page_no)!=nullptr)return this->lruCache->get(page_no);
+        if(this->lruCache->get(page_no)!=nullptr)return (pageNode*)this->lruCache->get(page_no);
         else{
             off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
             if(offset<0)exit(EXIT_FAILURE);
@@ -45,8 +45,39 @@ struct Pager{
         }
     }
 
-    void writePage(pageNode* node){
-        uint32_t page_no=node->pageNumber;
+    RootPageNode* getRootPage(){
+        uint32_t page_no=1;
+        if(page_no>this->numOfPages)return nullptr;
+        if(this->lruCache->get(page_no)!=nullptr)return (RootPageNode*)this->lruCache->get(page_no);
+        else{
+            off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
+            if(offset<0)exit(EXIT_FAILURE);
+            RootPage rawPage{};
+            ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
+            if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
+
+            
+            RootPageNode* node = new RootPageNode();
+            node->pageNumber = rawPage.pageNumber;
+            node->type = static_cast<PageType>(rawPage.type); 
+            // c++ stores in file as 0,1 on retrieving error if not typecast.
+            node->rowCount = rawPage.rowCount; 
+            node->freeStart=rawPage.freeStart; 
+            node->freeEnd=rawPage.freeEnd; 
+            uint16_t len=(node->type==PAGE_TYPE_INTERIOR)?node->rowCount+1:node->rowCount;
+            memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *(len)); 
+            memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE);
+            node->trunkStart=rawPage.trunkStart;         
+            node->dirty=false;
+            
+            this->lruCache->put(page_no,node);
+
+            return node;
+        }
+    }
+
+    void writePage(void* node){
+        uint32_t page_no=GET_PAGE_NO(node);
         off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
         if(offset<0)exit(EXIT_FAILURE);
         ssize_t bytes_written = write(this->file_descriptor,node,PAGE_SIZE);
@@ -58,7 +89,7 @@ struct Pager{
         uint32_t count=this->lruCache->count;
         Node* tem=this->lruCache->head->next;
         for(uint32_t i=0;i<count;i++){
-            if(tem->value->dirty){this->writePage(tem->value);}
+            if(GET_DIRTY(tem->value,sizeof(PAGE_SIZE+1))){this->writePage(tem->value);}
             tem=tem->next;
         }
     }

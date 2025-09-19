@@ -5,6 +5,7 @@ const uint16_t PAGE_SIZE = 4096;
 const uint16_t PAGE_HEADER_SIZE = 14;
 #define MAX_ROWS  4
 
+
 struct RowSlot {
     uint64_t key;      // 8 bytes (row ID)
     uint16_t offset;   // 2 bytes (where username starts in payload)
@@ -88,5 +89,8 @@ struct RootPageNode {
     bool dirty;
 }__attribute__((packed));
 
+
+// All equivalent nodes have same size, else disk pages and in memory pages would differ.
+// bool dirty must be at last and at offset PAGE_SIZE 
 
 #endif

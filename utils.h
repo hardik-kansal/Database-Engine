@@ -1,6 +1,11 @@
 #ifndef UTILLS_H
 #define UTILLS_H
 #include "headerfiles.h"
+#define GET_DIRTY(ptr, size) (*(bool*)(((unsigned char*)(ptr)) + (size) - 1))
+#define GET_PAGE_NO(ptr) *((uint32_t*)(ptr))
+
+
+
 uint16_t lb(RowSlot arr[],uint16_t n,uint64_t id){    
     if(n==0)return 0;
     uint16_t l=0;uint16_t h=n-1;

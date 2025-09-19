@@ -10,10 +10,10 @@ using namespace std;
 // key is page_no uint32_t
 struct Node{
     uint32_t key;
-    pageNode* value;
+    void* value;
     Node* next;
     Node* prev;
-    Node(uint32_t  key,pageNode* value){
+    Node(uint32_t  key,void* value){
         this->key=key;
         this->value=value;
         next=nullptr;
@@ -50,7 +50,7 @@ public:
             tail->prev=head;
         }
         
-        pageNode* get(uint32_t  key) {
+        void* get(uint32_t  key) {
             if(m.find(key)!=m.end()){
                 remove(m[key],m[key]->next);
                 insertStart(m[key]);          
@@ -59,7 +59,7 @@ public:
             else return nullptr;
         }
         
-        void put(uint32_t key, pageNode* value) {
+        void put(uint32_t key, void* value) {
             if(m.find(key)!=m.end()){
                 m[key]->value=value;
                 remove(m[key],m[key]->next);

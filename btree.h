@@ -1,8 +1,9 @@
 #ifndef btree_H
 #define btree_H
 #include "headerfiles.h"
-#include "pager.h"
 #include "structs.h"
+#include "pager.h"
+
 // no of rows -> uint16_t
 // ((char*)page) -> char* type cast priority is less. 
 // char* is needed else whatever is added to it, will be added in size of page.
