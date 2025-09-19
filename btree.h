@@ -11,25 +11,38 @@ class Bplustrees{
     private:
         Pager* pager;
         pageNode* root;
+        uint32_t trunkStart;
         uint16_t M=(MAX_ROWS+1)/2-1; // min keys
 
     public:
         Bplustrees(Pager*pager){
             this->pager=pager;
             // Initialize root page if it doesn't exist
-            this->root = pager->getPage(1);
-            if(this->root == nullptr) {
+            RootPageNode* rootPage = pager->getRootPage();
+            this->root = new pageNode();
+            if(rootPage == nullptr) {
                 // Create root page
-                this->root = new pageNode();
                 this->root->pageNumber = 1;
                 this->root->type = PAGE_TYPE_LEAF;
                 this->root->rowCount = 0;
                 this->root->dirty = true;
                 this->root->freeStart=FREE_START_DEFAULT;
                 this->root->freeEnd=FREE_END_DEFAULT;
-                pager->lruCache->put(1, this->root);
                 pager->numOfPages=1;
+                this->trunkStart=1;
             }
+            else{
+                this->root->pageNumber = rootPage->pageNumber;
+                this->root->type = PAGE_TYPE_LEAF;
+                this->root->rowCount = rootPage->rowCount;
+                this->root->dirty = true;
+                this->root->freeStart=rootPage->freeStart;
+                this->root->freeEnd=FREE_END_DEFAULT;
+                this->trunkStart=rootPage->trunkStart;
+            }
+            pager->lruCache->put(1, this->root);
+            delete rootPage;
+
         }
 
         // id is key.
