@@ -238,7 +238,11 @@ class Bplustrees{
             }
             
             // Adjust split point to balance payload usage
-            uint32_t availableSpace = -FREE_END_DEFAULT + FREE_START_DEFAULT;
+            
+            uint32_t availableSpace = -FREE_END_DEFAULT;
+            if(page->pageNumber==1)availableSpace+=FREE_START_DEFAULT_ROOT;
+            else availableSpace+=FREE_START_DEFAULT;
+
             uint32_t targetSpace = availableSpace / 2;
             
             while (splitIndex > 0 && totalPayloadUsed > targetSpace) {
@@ -256,24 +260,28 @@ class Bplustrees{
             // Copy slots
             memcpy(newLeaf->slots, oldLeaf->slots + splitIndex, sizeof(RowSlot) * rowsToMove);
             
-            // Copy payloads
-            uint32_t payloadOffset = FREE_START_DEFAULT;
+            // Copy payloads (use offsets/lengths from the moved range)
+            uint32_t newPayloadOffset = FREE_START_DEFAULT; // newLeaf is always a normal page
             for (uint16_t i = 0; i < rowsToMove; i++) {
-                uint32_t oldOffset = newLeaf->slots[i].offset;
-                uint32_t length = newLeaf->slots[i].length;
+                uint32_t oldOffset = oldLeaf->slots[i + splitIndex].offset;
+                uint32_t length    = oldLeaf->slots[i + splitIndex].length;
                 
-                memcpy(((char*)newLeaf) + payloadOffset-length, ((char*)oldLeaf) + oldOffset, length);
-                newLeaf->slots[i].offset = payloadOffset-length;
-                payloadOffset -= length;
+                memcpy(((char*)newLeaf) + newPayloadOffset - length, ((char*)oldLeaf) + oldOffset, length);
+                newLeaf->slots[i].offset = newPayloadOffset - length;
+                newPayloadOffset -= length;
             }
             
             // Update page metadata
             newLeaf->rowCount = rowsToMove;
-            newLeaf->freeStart = payloadOffset;
+            newLeaf->freeStart = newPayloadOffset;
             oldLeaf->rowCount = splitIndex;
-            oldLeaf->freeStart = oldLeaf->freeStart+FREE_START_DEFAULT-payloadOffset;
             
-            oldLeaf->type=PAGE_TYPE_LEAF;
+            // Adjust oldLeaf freeStart by the total bytes moved out.
+            // If oldLeaf was the root (page 1), its baseline freeStart is different.
+            uint32_t oldBaseline = (oldLeaf->pageNumber == 1) ? FREE_START_DEFAULT_ROOT : FREE_START_DEFAULT;
+            oldLeaf->freeStart = oldLeaf->freeStart + (oldBaseline - newPayloadOffset);
+            
+            oldLeaf->type = PAGE_TYPE_LEAF;
             oldLeaf->dirty = true;
             newLeaf->dirty = true;
         }
@@ -359,10 +367,10 @@ class Bplustrees{
             
             // Split the internal node
             uint16_t splitIndex = findSplitIndex(internal);
-            
+
             // Move half the entries to new internal node
             moveInternalRowsToNew(internal, newInternal, splitIndex);
-            
+
             // Insert the new entry
             if (index < splitIndex) {
                 insertInternalRowAt(internal, index, key, pageNumber);
@@ -372,8 +380,10 @@ class Bplustrees{
             
             // Update parent or create new root
             if (path.size() == 1) {
+                printNode(internal);
                 internal->pageNumber=new_page_no();
                 pager->lruCache->put(internal->pageNumber, internal);
+                printNode(internal);
                 createNewRoot(internal, newInternal,splitIndex);
             } else {
                 path.pop_back();
@@ -389,7 +399,9 @@ class Bplustrees{
             if(rowsToMove>0)memcpy(newInternal->slots, oldInternal->slots + splitIndex+1, sizeof(RowSlot) * rowsToMove);
             
             // Copy payloads
-            uint32_t payloadOffset = FREE_START_DEFAULT;
+            uint32_t payloadOffset = -1;
+            if(oldInternal->pageNumber==1)payloadOffset=FREE_START_DEFAULT_ROOT;
+            else payloadOffset=FREE_START_DEFAULT;
             for (uint16_t i = 0; i < rowsToMove+1; i++) {
                 uint32_t oldOffset = oldInternal->slots[i+splitIndex].offset;
                 uint32_t length = sizeof(uint32_t);
@@ -404,7 +416,7 @@ class Bplustrees{
             else newInternal->rowCount = 0;
             newInternal->freeStart = payloadOffset;
             oldInternal->rowCount = splitIndex;
-            oldInternal->freeStart = oldInternal->freeStart+FREE_START_DEFAULT-payloadOffset;
+            oldInternal->freeStart = oldInternal->freeStart+FREE_START_DEFAULT_ROOT-payloadOffset;
             
             oldInternal->dirty = true;
             newInternal->dirty = true;
