@@ -17,6 +17,7 @@ const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE
                                 - PAGE_HEADER_SIZE  
                                 - sizeof(RowSlot) * MAX_ROWS ;
 const uint16_t FREE_START_DEFAULT = PAGE_SIZE;
+const uint16_t MAX_PAYLOAD_SIZE_ROOT= MAX_PAYLOAD_SIZE-sizeof(uint32_t);// trunkstart
 const uint16_t FREE_START_DEFAULT_ROOT = PAGE_SIZE-sizeof(uint32_t);
 
 const uint16_t FREE_END_DEFAULT =PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
@@ -61,7 +62,7 @@ struct Page {
     uint16_t freeStart;     // 2 (start of free space in payload)
     uint16_t freeEnd;       // 2 (end of free space in payload)  
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
-    char payload[PAGE_SIZE - PAGE_HEADER_SIZE - sizeof(RowSlot) * MAX_ROWS];
+    char payload[MAX_PAYLOAD_SIZE];
 }__attribute__((packed));
 static_assert(sizeof(Page)== PAGE_SIZE, "Page SIZE MISMATCH");
 
@@ -75,7 +76,7 @@ struct TrunkPage {
     PageType type;          // 4 since int declarartion
     uint32_t prevTrunkPage; //4 
     uint32_t rowCount;      //4
-    uint32_t tPages[(PAGE_SIZE-16)/4]; 
+    uint32_t tPages[NO_OF_TPAGES]; 
 }__attribute__((packed));
 static_assert(sizeof(TrunkPage)== PAGE_SIZE, "TrunkPage SIZE MISMATCH");
 
@@ -99,7 +100,7 @@ struct RootPage {
     uint16_t freeStart;     // 2 (start of free space in payload)
     uint16_t freeEnd;       // 2 (end of free space in payload)  
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
-    char payload[PAGE_SIZE - PAGE_HEADER_SIZE - sizeof(RowSlot) * MAX_ROWS-sizeof(uint32_t)];
+    char payload[MAX_PAYLOAD_SIZE_ROOT];
     uint32_t trunkStart;
 }__attribute__((packed));
 static_assert(sizeof(RootPage)== PAGE_SIZE, "RootPage SIZE MISMATCH");
@@ -112,7 +113,7 @@ struct RootPageNode {
     uint16_t freeStart;     // 2 (start of free space in payload)
     uint16_t freeEnd;       // 2 (end of free space in payload)  
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
-    char payload[PAGE_SIZE - PAGE_HEADER_SIZE - sizeof(RowSlot) * MAX_ROWS-sizeof(uint32_t)];
+    char payload[MAX_PAYLOAD_SIZE_ROOT];
     uint32_t trunkStart;
     // till now ->pagesize
     bool dirty;

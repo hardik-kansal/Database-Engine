@@ -33,8 +33,7 @@ struct Pager{
             node->rowCount = rawPage.rowCount; 
             node->freeStart=rawPage.freeStart; 
             node->freeEnd=rawPage.freeEnd; 
-            uint16_t len=(node->type==PAGE_TYPE_INTERIOR)?node->rowCount+1:node->rowCount;
-            memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *(len)); 
+            memcpy(node->slots,rawPage.slots,sizeof(RowSlot)*MAX_ROWS); 
             memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE);
             
             node->dirty=false;
@@ -64,14 +63,11 @@ struct Pager{
             node->rowCount = rawPage.rowCount; 
             node->freeStart=rawPage.freeStart; 
             node->freeEnd=rawPage.freeEnd; 
-            uint16_t len=(node->type==PAGE_TYPE_INTERIOR)?node->rowCount+1:node->rowCount;
-            memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *(len)); 
-            memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE);
+            memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *MAX_ROWS); 
+            memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE_ROOT);
             node->trunkStart=rawPage.trunkStart;         
-            node->dirty=false;
-            
-            this->lruCache->put(page_no,node);
-
+            node->dirty=false;           
+            this->lruCache->put(1,node);
             return node;
         }
     }
@@ -113,7 +109,8 @@ struct Pager{
         uint32_t count=this->lruCache->count;
         Node* tem=this->lruCache->head->next;
         for(uint32_t i=0;i<count;i++){
-            if(GET_DIRTY(tem->value,PAGE_SIZE+1)){this->writePage(tem->value);}
+            if (GET_PAGE_NO(tem->value)==1){this->writePage(tem->value);}
+            else if(GET_DIRTY(tem->value,PAGE_SIZE+1)){this->writePage(tem->value);}
             tem=tem->next;
         }
     }
