@@ -3,7 +3,7 @@
 #include "headerfiles.h"
 const uint16_t PAGE_SIZE = 4096;
 const uint16_t PAGE_HEADER_SIZE = 14;
-#define MAX_ROWS  3
+#define MAX_ROWS  4
 
 
 struct RowSlot {

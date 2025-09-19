@@ -59,7 +59,7 @@ class Bplustrees{
                 else{
                     if(i>0){
                     cout<<"key: "<<node->slots[i-1].key<<" ";
-                    cout<<"offset"<<node->slots[i-1].offset<<" ";
+                    // cout<<"offset"<<node->slots[i-1].offset<<" ";
                     }
                     cout<<"pageNo: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
@@ -76,7 +76,7 @@ class Bplustrees{
                 else{
                     if(i>0){
                         cout<<"key: "<<node->slots[i-1].key<<" ";
-                        cout<<"offset"<<node->slots[i-1].offset<<" ";
+                        // cout<<"offset"<<node->slots[i-1].offset<<" ";
                     }
                     cout<<"pageNo: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
@@ -194,17 +194,18 @@ class Bplustrees{
             uint16_t splitIndex = findSplitIndex(leaf);
 
             // Move half the rows to the new leaf
-            moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
             
             // Insert the new row in the appropriate page
             if (index < splitIndex) {
+// this means leaf have new element, so mving rows will be differrnt.
+            insertRowAt(leaf, index, key, payload, payloadLength);
+            moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
 
-                    insertRowAt(leaf, index, key, payload, payloadLength);
 
                 }
              else {
-
-                    insertRowAt(newLeaf, index-splitIndex, key, payload, payloadLength);
+                moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
+                insertRowAt(newLeaf, index-splitIndex, key, payload, payloadLength);
 
             }
             
@@ -238,7 +239,7 @@ class Bplustrees{
         // Find the optimal split index based on payload capacity
         uint16_t findSplitIndex(pageNode* page) {
             uint32_t totalPayloadUsed = 0;
-            uint16_t splitIndex = page->rowCount / 2+1; // Start with middle
+            uint16_t splitIndex = (page->rowCount +1)/ 2; // Start with middle
             
             // Calculate payload usage up to split point
             for (uint16_t i = 0; i < splitIndex; i++) {
@@ -305,7 +306,6 @@ class Bplustrees{
             newRoot->freeStart = FREE_START_DEFAULT_ROOT;
             newRoot->freeEnd = FREE_END_DEFAULT;
             newRoot->dirty = true;
-            cout<<"FREE_START_DEFAULT_ROOT"<<FREE_START_DEFAULT_ROOT<<endl;
             // Set up the root's slots
             newRoot->slots[0].key = leftChild->slots[splitIndex].key; // First key of right child
             newRoot->slots[0].offset = newRoot->freeStart-sizeof(uint32_t);
@@ -348,7 +348,9 @@ class Bplustrees{
             
             // Insert new slot
             internal->slots[index].key = key;
-            internal->slots[index].offset = internal->freeStart;
+            internal->slots[index].offset = internal->freeStart; 
+            // bz whenever internal node created, page offset to right page of first child is also set
+            // this means new internal key is mapped to current freeStart.
             internal->slots[index].length = sizeof(uint32_t);
             
             // Store page number in payload
@@ -429,12 +431,10 @@ class Bplustrees{
             uint16_t offset=FREE_START_DEFAULT;
             for(uint16_t i = 0; i <= splitIndex; i++){
                 uint16_t oldOffset=oldInternal->slots[i].offset;
-                cout<<"offset: "<<oldOffset<<endl;
                 uint16_t buffOffset= oldOffset - FREE_END_DEFAULT;
                 memcpy(((char*)oldInternal) + offset-sizeof(uint32_t),buff+buffOffset,sizeof(uint32_t));
                 oldInternal->slots[i].offset=offset-sizeof(uint32_t);
                 offset-=sizeof(uint32_t);
-                cout<<*((uint32_t*)(buff+buffOffset))<<endl;
             }
 
             oldInternal->freeStart=offset;

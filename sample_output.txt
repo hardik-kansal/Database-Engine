@@ -1,0 +1,32 @@
+g++ -o dbms main.cpp 
+./dbms <<EOF
+i 7 h
+i 10 h
+i 1 h
+i 23 h
+i 5 h
+i 15 h
+i 17 h
+i 9 h
+i 11 h
+s*
+.exit
+EOF
+
+./dbms <<EOF
+i 39 h
+i 35 h
+s*
+.exit
+EOF
+
+./dbms <<EOF
+s*
+i 8 h
+i 40 h
+i 25 h
+s*
+EOF
+
+
+
