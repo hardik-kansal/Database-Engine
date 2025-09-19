@@ -113,7 +113,7 @@ struct Pager{
         uint32_t count=this->lruCache->count;
         Node* tem=this->lruCache->head->next;
         for(uint32_t i=0;i<count;i++){
-            if(GET_DIRTY(tem->value,sizeof(PAGE_SIZE+1))){this->writePage(tem->value);}
+            if(GET_DIRTY(tem->value,PAGE_SIZE+1)){this->writePage(tem->value);}
             tem=tem->next;
         }
     }
