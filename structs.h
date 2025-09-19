@@ -16,6 +16,7 @@ const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE
                                 - sizeof(RowSlot) * MAX_ROWS ;
 const uint16_t FREE_START_DEFAULT = PAGE_SIZE;
 const uint16_t FREE_END_DEFAULT =PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
+const uint16_t NO_OF_TPAGES=(PAGE_SIZE-16)/4;
 
 
 struct pageNode {
@@ -61,7 +62,7 @@ struct TrunkPageNode {
     PageType type;          // 4 since int declarartion
     uint32_t prevTrunkPage; //4 
     uint32_t rowCount;      //4
-    uint32_t tPages[(PAGE_SIZE-16)/4]; 
+    uint32_t tPages[NO_OF_TPAGES]; 
     bool dirty;
 }__attribute__((packed));
 

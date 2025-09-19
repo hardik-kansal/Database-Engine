@@ -75,7 +75,31 @@ struct Pager{
             return node;
         }
     }
+    TrunkPageNode* getTrunkPage(uint32_t page_no){
+        if(page_no>this->numOfPages)return nullptr;
+        if(this->lruCache->get(page_no)!=nullptr)return (TrunkPageNode*)this->lruCache->get(page_no);
+        else{
+            off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
+            if(offset<0)exit(EXIT_FAILURE);
+            TrunkPage rawPage{};
+            ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
+            if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
 
+            
+            TrunkPageNode* node = new TrunkPageNode();
+            node->pageNumber = rawPage.pageNumber;
+            node->type = static_cast<PageType>(rawPage.type); 
+            // c++ stores in file as 0,1 on retrieving error if not typecast.
+            node->rowCount = rawPage.rowCount; 
+            memcpy(node->tPages,rawPage.tPages,sizeof(uint32_t) *(NO_OF_TPAGES)); 
+            node->prevTrunkPage=rawPage.prevTrunkPage;         
+            node->dirty=false;
+            
+            this->lruCache->put(page_no,node);
+
+            return node;
+        }
+    }
     void writePage(void* node){
         uint32_t page_no=GET_PAGE_NO(node);
         off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
