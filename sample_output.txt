@@ -1,4 +1,5 @@
 g++ -o dbms main.cpp 
+
 ./dbms <<EOF
 i 7 h
 i 10 h
@@ -28,5 +29,12 @@ i 25 h
 s*
 EOF
 
-
+./dbms <<EOF
+i 7 h
+i 10 h
+i 1 h
+i 23 h
+s*
+.exit
+EOF
 

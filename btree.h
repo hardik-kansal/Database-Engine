@@ -198,8 +198,9 @@ class Bplustrees{
             // Insert the new row in the appropriate page
             if (index < splitIndex) {
 // this means leaf have new element, so mving rows will be differrnt.
+            moveRowsToNewLeaf(leaf, newLeaf, splitIndex-1);
             insertRowAt(leaf, index, key, payload, payloadLength);
-            moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
+
 
 
                 }
@@ -307,7 +308,7 @@ class Bplustrees{
             newRoot->freeEnd = FREE_END_DEFAULT;
             newRoot->dirty = true;
             // Set up the root's slots
-            newRoot->slots[0].key = leftChild->slots[splitIndex].key; // First key of right child
+            newRoot->slots[0].key = rightChild->slots[0].key; // First key of right child
             newRoot->slots[0].offset = newRoot->freeStart-sizeof(uint32_t);
             newRoot->slots[0].length = sizeof(uint32_t);
             
