@@ -92,6 +92,13 @@ class Bplustrees{
                 }
             }
         }
+        uint32_t new_page_no(){
+            if(trunkStart==1)return ++pager->numOfPages;
+            TrunkPageNode* node=pager->getTrunkPage(trunkStart);
+            if(node->rowCount==0){trunkStart=node->prevTrunkPage;return node->pageNumber;}
+            node->rowCount--;
+            return node->tPages[node->rowCount];
+        }
         // Insert a new row into the B+ tree
         void insert(uint64_t key, const char* payload) {
             vector<pageNode*> path;
@@ -180,7 +187,7 @@ class Bplustrees{
             
             // Update parent or create new root
             if (path.size() == 1) {
-                leaf->pageNumber=++pager->numOfPages;
+                leaf->pageNumber=new_page_no();
                 pager->lruCache->put(leaf->pageNumber, leaf);
                 createNewRoot(leaf, newLeaf,splitIndex);
             } else {
@@ -193,7 +200,7 @@ class Bplustrees{
         // Create a new leaf page
         pageNode* createNewLeafPage() {
             pageNode* newLeaf = new pageNode();
-            newLeaf->pageNumber = ++pager->numOfPages;
+            newLeaf->pageNumber = new_page_no();
             newLeaf->type = PAGE_TYPE_LEAF;
             newLeaf->rowCount = 0;
             newLeaf->freeStart = FREE_START_DEFAULT;
@@ -320,7 +327,7 @@ class Bplustrees{
         }
         pageNode* createNewInternalPage(){
             pageNode* newInternal = new pageNode();
-            newInternal->pageNumber = ++pager->numOfPages;
+            newInternal->pageNumber = new_page_no();
             newInternal->type = PAGE_TYPE_INTERIOR;
             newInternal->rowCount = 0;
             newInternal->freeStart = FREE_START_DEFAULT;
@@ -350,7 +357,7 @@ class Bplustrees{
             
             // Update parent or create new root
             if (path.size() == 1) {
-                internal->pageNumber=++pager->numOfPages;
+                internal->pageNumber=new_page_no();
                 pager->lruCache->put(internal->pageNumber, internal);
                 createNewRoot(internal, newInternal,splitIndex);
             } else {
