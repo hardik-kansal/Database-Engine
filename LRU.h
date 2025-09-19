@@ -1,6 +1,7 @@
 #ifndef LRU_H
 #define LRU_H
 #include "headerfiles.h"
+#include "structs.h"
 using namespace std;
 
 // TO_DO 

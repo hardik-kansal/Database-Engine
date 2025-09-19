@@ -1,5 +1,3 @@
-#include "enums.h"
-#include "pages_schema.h"
 #include "pager.h"
 #include "headerfiles.h"
 #include "btree.h"
