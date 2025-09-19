@@ -3,6 +3,8 @@
 #include "headerfiles.h"
 #define GET_DIRTY(ptr, size) (*(bool*)(((unsigned char*)(ptr)) + (size) - 1))
 #define GET_PAGE_NO(ptr) *((uint32_t*)(ptr))
+#define GET_PAGE_TYPE(ptr) *((uint32_t*)(ptr)+1)
+
 
 
 

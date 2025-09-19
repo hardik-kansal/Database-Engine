@@ -41,10 +41,16 @@ void read_input(InputBuffer* inputBuffer){
 
   
 PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) {
-    if (strcmp(input_buffer->buffer, "select") == 0) {
+    if (strcmp(input_buffer->buffer, "select*") == 0) {
       statement->type = STATEMENT_SELECT;
       return PREPARE_SUCCESS;
     }
+    if (strncmp(input_buffer->buffer, "select",6) == 0) {
+        statement->type = STATEMENT_SELECT_ID;
+        int args_assigned=sscanf(input_buffer->buffer,"select %lu",&(statement->row.key));
+        if(args_assigned<1)return PREPARE_UNRECOGNIZED_STATEMENT;
+        return PREPARE_SUCCESS;
+      }
     if (strncmp(input_buffer->buffer, "insert",6) == 0) {   // strncp reads only first 6 bytes
       statement->type = STATEMENT_INSERT;
       int args_assigned=sscanf(input_buffer->buffer,"insert %lu %s",&(statement->row.key),statement->row.payload);
@@ -124,12 +130,16 @@ executeResult execute_select(Statement* statement, Table* table) {
     table->bplusTrees->printTree();
     return EXECUTE_SUCCESS;
 }
+executeResult execute_select_id(Statement* statement, Table* table) {
+    table->bplusTrees->printNode(table->pager->getPage(statement->row.key));
+    return EXECUTE_SUCCESS;
+}
 
 executeResult execute_modify(Statement* statement, Table* table) {
     return EXECUTE_SUCCESS;
 }
 executeResult execute_delete(Statement* statement, Table* table) {
-    table->bplusTrees->deleteKey(statement->row.key);
+    // table->bplusTrees->deleteKey(statement->row.key);
     return EXECUTE_SUCCESS;
 }
 
@@ -139,10 +149,13 @@ executeResult execute_statement(Statement* statement, Table* table) {
             return execute_insert(statement, table);
         case (STATEMENT_SELECT):
             return execute_select(statement, table);
+        case (STATEMENT_SELECT_ID):
+            return execute_select_id(statement, table);
         case (STATEMENT_MODIFY):
             return execute_modify(statement, table);
         case (STATEMENT_DELETE):
             return execute_delete(statement, table);
+        
     }
     return EXECUTE_SUCCESS;
 }

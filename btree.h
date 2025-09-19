@@ -10,7 +10,7 @@
 class Bplustrees{
     private:
         Pager* pager;
-        pageNode* root;
+        RootPageNode* root;
         uint32_t trunkStart;
         uint16_t M=(MAX_ROWS+1)/2-1; // min keys
 
@@ -19,35 +19,29 @@ class Bplustrees{
             this->pager=pager;
             // Initialize root page if it doesn't exist
             RootPageNode* rootPage = pager->getRootPage();
-            this->root = new pageNode();
             if(rootPage == nullptr) {
                 // Create root page
+                this->root = new RootPageNode();
                 this->root->pageNumber = 1;
                 this->root->type = PAGE_TYPE_LEAF;
                 this->root->rowCount = 0;
                 this->root->dirty = true;
-                this->root->freeStart=FREE_START_DEFAULT;
+                this->root->freeStart=FREE_START_DEFAULT-sizeof(uint32_t);
                 this->root->freeEnd=FREE_END_DEFAULT;
+                this->root->trunkStart=1;
                 pager->numOfPages=1;
-                this->trunkStart=1;
+            } else {
+                this->root = rootPage;
             }
-            else{
-                this->root->pageNumber = rootPage->pageNumber;
-                this->root->type = PAGE_TYPE_LEAF;
-                this->root->rowCount = rootPage->rowCount;
-                this->root->dirty = true;
-                this->root->freeStart=rootPage->freeStart;
-                this->root->freeEnd=FREE_END_DEFAULT;
-                this->trunkStart=rootPage->trunkStart;
-            }
+            this->trunkStart=this->root->trunkStart;
             pager->lruCache->put(1, this->root);
-            delete rootPage;
-
         }
 
         // id is key.
         uint32_t search(uint64_t key){
-            pageNode* curr =root;
+            if(root->type==PAGE_TYPE_LEAF)return 1;
+            uint16_t index=ub(root->slots,root->rowCount,key);
+            pageNode* curr=pager->getPage(pager->getPageNoPayload(root,index));
             while(curr->type!=PAGE_TYPE_LEAF){
                 uint16_t index=ub(curr->slots,curr->rowCount,key);
                 curr=pager->getPage(pager->getPageNoPayload(curr,index));
@@ -69,12 +63,33 @@ class Bplustrees{
             }
             cout<<"]"<<"    ";
         }
+        void printRootNode(RootPageNode* node){
+            cout<<"TRUNK START ROOT NODE: "<<node->trunkStart<<endl;
+            cout<<"TRUNK START BTREE:  "<<trunkStart<<endl;
+            cout<<"NO OF PAGES : "<<pager->numOfPages<<endl;
+            if(node==nullptr)return;
+            bool check=node->type==PAGE_TYPE_INTERIOR;
+            uint16_t len=(check)?node->rowCount+1: node->rowCount;
+            cout<<"["<<" ";
+            for(uint16_t i=0;i<len;i++){
+                if(!check)cout<<"leafkey: "<<node->slots[i].key<<' ';
+                else{
+                    if(i>0)cout<<"key: "<<node->slots[i-1].key<<" ";
+                    cout<<"pageNo: "<<pager->getPageNoPayload(node,i)<<' ';
+                }
+            }
+            cout<<"]"<<"    ";
+        }
         void printTree() {
-            pageNode* curr = root;
+            printRootNode(root);
             queue<pageNode*> q;
-            q.push(curr);
-
             q.push(nullptr);
+            bool check=root->type==PAGE_TYPE_LEAF;
+            uint16_t len=(!check)?root->rowCount+1: root->rowCount;
+            for (uint16_t i=0;i<len;i++) {
+                uint32_t page_no=pager->getPageNoPayload(root,i);
+                if(!check && page_no!=0)q.push(pager->getPage(page_no));
+            }           
             while (!q.empty()) {
                 pageNode* node = q.front();
                 q.pop();
@@ -93,16 +108,16 @@ class Bplustrees{
             }
         }
         uint32_t new_page_no(){
-            if(trunkStart==1)return ++pager->numOfPages;
-            TrunkPageNode* node=pager->getTrunkPage(trunkStart);
-            if(node->rowCount==0){trunkStart=node->prevTrunkPage;return node->pageNumber;}
+            if(root->trunkStart==1)return ++pager->numOfPages;
+            TrunkPageNode* node=pager->getTrunkPage(root->trunkStart);
+            if(node->rowCount==0){root->trunkStart=node->prevTrunkPage;return node->pageNumber;}
             node->rowCount--;
             return node->tPages[node->rowCount];
         }
         // Insert a new row into the B+ tree
         void insert(uint64_t key, const char* payload) {
-            vector<pageNode*> path;
-            pageNode* curr = root;
+            vector<pageNode*> path;           
+            pageNode* curr = (pageNode*)root;
             path.push_back(curr);
             // Navigate to the appropriate leaf page
             while (curr->type != PAGE_TYPE_LEAF) {
@@ -265,25 +280,25 @@ class Bplustrees{
         
         // Create a new root when splitting the root page
         void createNewRoot(pageNode* leftChild, pageNode* rightChild,uint16_t splitIndex) {
-            pageNode* newRoot = new pageNode();
+            RootPageNode* newRoot = new RootPageNode();
             newRoot->pageNumber = 1;
             newRoot->type = PAGE_TYPE_INTERIOR;
             newRoot->rowCount = 1;
-            newRoot->freeStart = FREE_START_DEFAULT;
+            newRoot->freeStart = FREE_START_DEFAULT_ROOT;
             newRoot->freeEnd = FREE_END_DEFAULT;
             newRoot->dirty = true;
             
             // Set up the root's slots
             newRoot->slots[0].key = leftChild->slots[splitIndex].key; // First key of right child
-            newRoot->slots[0].offset = FREE_START_DEFAULT-sizeof(uint32_t);
+            newRoot->slots[0].offset = newRoot->freeStart-sizeof(uint32_t);
             newRoot->slots[0].length = sizeof(uint32_t);
             
             // Store page numbers in payload
-            memcpy(((char*)newRoot) + FREE_START_DEFAULT-sizeof(uint32_t), &leftChild->pageNumber, sizeof(uint32_t));
-            memcpy(((char*)newRoot)+ FREE_START_DEFAULT - 2*sizeof(uint32_t), &rightChild->pageNumber, sizeof(uint32_t));
+            memcpy(((char*)newRoot) + newRoot->freeStart-sizeof(uint32_t), &leftChild->pageNumber, sizeof(uint32_t));
+            memcpy(((char*)newRoot)+ newRoot->freeStart - 2*sizeof(uint32_t), &rightChild->pageNumber, sizeof(uint32_t));
             
-            newRoot->freeStart = FREE_START_DEFAULT - 2* sizeof(uint32_t);
-            
+            newRoot->freeStart = newRoot->freeStart - 2* sizeof(uint32_t);
+            newRoot->trunkStart=trunkStart;
             pager->lruCache->put(newRoot->pageNumber, newRoot);
             root = newRoot;
         }
@@ -394,6 +409,9 @@ class Bplustrees{
             oldInternal->dirty = true;
             newInternal->dirty = true;
         }
+
+
+        /*
         void updateParentKey(pageNode* page,uint16_t idx,vector<pageNode*> &path,uint64_t prevKey){
             if(idx==0 && path.size()>1){
                 pageNode* parent=path[path.size()-2];
@@ -491,9 +509,8 @@ class Bplustrees{
 
                 }              
             }
+            */
 
-
-        }
 };
 
 #endif

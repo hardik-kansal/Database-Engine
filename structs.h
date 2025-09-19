@@ -3,7 +3,7 @@
 #include "headerfiles.h"
 const uint16_t PAGE_SIZE = 4096;
 const uint16_t PAGE_HEADER_SIZE = 14;
-#define MAX_ROWS  4
+#define MAX_ROWS  3
 
 
 struct RowSlot {
@@ -17,7 +17,10 @@ const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE
                                 - PAGE_HEADER_SIZE  
                                 - sizeof(RowSlot) * MAX_ROWS ;
 const uint16_t FREE_START_DEFAULT = PAGE_SIZE;
+const uint16_t FREE_START_DEFAULT_ROOT = PAGE_SIZE-sizeof(uint32_t);
+
 const uint16_t FREE_END_DEFAULT =PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
+// 56 or 0x3800 in little endian, each hex 4bits, 1 byte no endianess
 const uint16_t NO_OF_TPAGES=(PAGE_SIZE-16)/4;
 
 /*

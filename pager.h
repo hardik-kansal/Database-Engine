@@ -128,12 +128,11 @@ struct Pager{
       
     }
     // index id 0 based and gives corresponding pageNo.
-    uint32_t getPageNoPayload(pageNode* curr,uint16_t index){
-
+    uint32_t getPageNoPayload(void* curr,uint16_t index){
         uint32_t value;
-        memcpy(&value, ((char*)curr) + PAGE_SIZE-(index+1)*sizeof(uint32_t), sizeof(uint32_t));        
+        if(GET_PAGE_NO(curr)==1)memcpy(&value, ((char*)curr) + PAGE_SIZE-(index+2)*sizeof(uint32_t), sizeof(uint32_t));  
+        else memcpy(&value, ((char*)curr) + PAGE_SIZE-(index+1)*sizeof(uint32_t), sizeof(uint32_t));  
         return value;
-
     }
 
  };
