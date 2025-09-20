@@ -38,3 +38,40 @@ s*
 .exit
 EOF
 
+// NEW INPUT
+./dbms <<EOF
+i 8 2
+i 9 2
+i 15 3
+i 1 1
+i 2 1
+i 3 1
+.exit
+EOF
+
+./dbms <<EOF
+i 19 3
+i 10 2
+i 11 2
+i 12 2
+i 13 3
+i 14 3
+.exit
+EOF
+
+./dbms <<EOF
+i 4 1
+i 5 2
+i 6 2
+i 7 2
+.exit
+EOF
+
+./dbms <<EOF
+i 16 3
+i 17 3
+.exit
+EOF
+
+i 20 3
+i 18 3

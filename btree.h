@@ -55,13 +55,13 @@ class Bplustrees{
             uint16_t len=(check)?node->rowCount+1: node->rowCount;
             cout<<"["<<" ";
             for(uint16_t i=0;i<len;i++){
-                if(!check)cout<<"leafkey: "<<node->slots[i].key<<' ';
+                if(!check)cout<<"lk: "<<node->slots[i].key<<' ';
                 else{
                     if(i>0){
-                    cout<<"key: "<<node->slots[i-1].key<<" ";
+                    cout<<"k: "<<node->slots[i-1].key<<" ";
                     // cout<<"offset: "<<node->slots[i-1].offset<<" ";
                     }
-                    cout<<"pageNo: "<<pager->getPageNoPayload(node,i)<<' ';
+                    cout<<"p: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
             }
             cout<<"]"<<"    ";
@@ -72,13 +72,13 @@ class Bplustrees{
             uint16_t len=(check)?node->rowCount+1: node->rowCount;
             cout<<"["<<" ";
             for(uint16_t i=0;i<len;i++){
-                if(!check)cout<<"leafkey: "<<node->slots[i].key<<' ';
+                if(!check)cout<<"lk: "<<node->slots[i].key<<' ';
                 else{
                     if(i>0){
-                        cout<<"key: "<<node->slots[i-1].key<<" ";
+                        cout<<"k: "<<node->slots[i-1].key<<" ";
                         // cout<<"offset: "<<node->slots[i-1].offset<<" ";
                     }
-                    cout<<"pageNo: "<<pager->getPageNoPayload(node,i)<<' ';
+                    cout<<"p: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
             }
             cout<<"]"<<"    ";
@@ -219,7 +219,7 @@ class Bplustrees{
             } else {
                 // Insert into parent
                 path.pop_back();
-                insertIntoInternal(path[path.size() - 1], leaf, newLeaf, path);
+                insertIntoInternal(path[path.size() - 1], leaf, newLeaf, path,newLeaf->slots[0].key);
             }
         }
         
@@ -324,13 +324,12 @@ class Bplustrees{
         }
         
         // Insert into internal node
-        void insertIntoInternal(pageNode* internal, pageNode* leftChild, pageNode* rightChild, vector<pageNode*>& path) {
-            uint64_t key = rightChild->slots[0].key;
-            cout<<"key: "<<key<<endl;
+        void insertIntoInternal(pageNode* internal, pageNode* leftChild, pageNode* rightChild, vector<pageNode*>& path,uint64_t key) {
+            // cout<<"key: "<<key<<endl;
             uint32_t rightPageNumber = rightChild->pageNumber;
             // Find insertion point
             uint16_t index = ub(internal->slots, internal->rowCount, key);
-            cout<<"index: "<<index<<endl;
+            // cout<<"index: "<<index<<endl;
             
             if (canInsertRow(internal, sizeof(uint32_t))) {
                 // Insert into internal node
@@ -340,7 +339,7 @@ class Bplustrees{
                 internal->dirty = true;
             } else {
                 // Split internal node
-                cout<<"here1"<<endl;
+                // cout<<"here1"<<endl;
                 splitInternalAndInsert(internal, index, key, rightPageNumber, path);
             }
         }
@@ -354,6 +353,8 @@ class Bplustrees{
             
             // Insert new slot
             internal->slots[index].key = key;
+            internal->slots[index].length = sizeof(uint32_t);
+
             if(index==internal->rowCount){
                 internal->slots[index].offset = internal->freeStart; 
                 memcpy(((char*)internal)+ internal->freeStart-sizeof(uint32_t), &pageNumber, sizeof(uint32_t));
@@ -381,6 +382,25 @@ class Bplustrees{
             pager->lruCache->put(newInternal->pageNumber, newInternal);
             return newInternal;
         }
+        void defragment(pageNode* oldInternal,uint16_t  ind){
+            // DEFRAGMENTATION 
+            uint16_t len=(oldInternal->pageNumber==1)? (MAX_PAYLOAD_SIZE_ROOT) : MAX_PAYLOAD_SIZE;
+            char* buff=new char[len];
+            memcpy(buff,oldInternal->payload,len);
+            uint16_t offset=FREE_START_DEFAULT;
+            for(uint16_t i = 0; i < oldInternal->rowCount; i++){
+                uint16_t oldOffset=oldInternal->slots[i].offset;
+                uint16_t buffOffset= oldOffset - FREE_END_DEFAULT;
+                memcpy(((char*)oldInternal) + offset-sizeof(uint32_t),buff+buffOffset,sizeof(uint32_t));
+                oldInternal->slots[i].offset=offset-sizeof(uint32_t);
+                offset-=sizeof(uint32_t);
+            }
+            // rightmost node
+            memcpy(((char*)oldInternal) + offset-sizeof(uint32_t),buff+ind-FREE_END_DEFAULT,sizeof(uint32_t));
+
+            oldInternal->freeStart=offset-sizeof(uint32_t);
+            delete[] buff;
+        }
         
         // Split internal node and insert
         void splitInternalAndInsert(pageNode* internal, uint16_t index, uint64_t key, uint32_t pageNumber, vector<pageNode*>& path) {
@@ -390,36 +410,44 @@ class Bplustrees{
             // Split the internal node
             uint16_t splitIndex = findSplitIndex(internal);
             // Move half the entries to new internal node
-            cout<<"splitIndex Internal: "<<splitIndex<<endl;
-
+            // cout<<"splitIndex Internal: "<<splitIndex<<endl;
+            // cout<<"index: "<<index<<endl;
+            uint64_t newKey=0;
             // Insert the new entry
             if (index < splitIndex) {
+                 newKey=internal->slots[splitIndex-1].key;
+                 uint16_t rightOffset=internal->slots[splitIndex-1].offset;
                  moveInternalRowsToNew(internal, newInternal, splitIndex); 
                  internal->rowCount = splitIndex-1;  
+                 defragment(internal,rightOffset);
                  insertInternalRowAt(internal, index, key, pageNumber);
             } else if(index==splitIndex){
-                cout<<"here2"<<endl;
+                uint16_t rightOffset=internal->slots[splitIndex].offset;
                 moveInternalRowsToNew(internal, newInternal, splitIndex);   
                 internal->rowCount = splitIndex;  
-                insertInternalRowAt(newInternal, index - splitIndex, key, pageNumber);
+                defragment(internal,rightOffset);
+
+                // insertInternalRowAt(newInternal, index - splitIndex, key, pageNumber);
+                newKey=key;
             }
             else{
-                cout<<"here3"<<endl;
+                newKey= internal->slots[splitIndex].key;
+                // cout<<"newKey: "<<newKey<<endl;
+                uint16_t rightOffset=internal->slots[splitIndex].offset;
                 moveInternalRowsToNew(internal, newInternal, splitIndex+1);   
                 internal->rowCount = splitIndex;  
-                insertInternalRowAt(newInternal, index - splitIndex-1, key, pageNumber);   
+                defragment(internal,rightOffset);
+                insertInternalRowAt(newInternal, index - splitIndex-1, key, pageNumber);  
             }
             
             // Update parent or create new root
             if (path.size() == 1) {
                 internal->pageNumber=new_page_no();
                 pager->lruCache->put(internal->pageNumber, internal);
-                if(index < splitIndex)createNewRoot(internal, newInternal,internal->slots[splitIndex-1].key);
-                else if(index==splitIndex)createNewRoot(internal, newInternal,key);
-                else createNewRoot(internal, newInternal,internal->slots[splitIndex].key);
+                createNewRoot(internal,newInternal,newKey);
             } else {
                 path.pop_back();
-                insertIntoInternal(path[path.size() - 1], internal, newInternal, path);
+                insertIntoInternal(path[path.size() - 1], internal, newInternal, path,newKey);
             }
         }
         
@@ -428,38 +456,24 @@ class Bplustrees{
             uint16_t rowsToMove = oldInternal->rowCount - splitIndex;
             // Copy slots
             if(rowsToMove>0)memcpy(newInternal->slots, oldInternal->slots + splitIndex, sizeof(RowSlot) * rowsToMove);
-            
+
             // Copy payloads
             uint16_t payloadOffset =FREE_START_DEFAULT;
             for (uint16_t i = 0; i < rowsToMove; i++) {
                 uint16_t oldOffset = oldInternal->slots[i+splitIndex].offset;
-                uint32_t length = oldInternal->slots[i+splitIndex].length;
-                
+                uint32_t length = sizeof(uint32_t);
+                // cout<<*((uint32_t*)(((char*)oldInternal) + oldOffset))<<endl;
                 memcpy(((char*)newInternal) + payloadOffset-length, ((char*)oldInternal) + oldOffset, length);
                 newInternal->slots[i].offset = payloadOffset-length;
                 payloadOffset -= length;
             }
             uint32_t length = sizeof(uint32_t);
             memcpy(((char*)newInternal) + payloadOffset-length, ((char*)oldInternal) + oldInternal->freeStart, length);
+
             // Update metadata
             if(rowsToMove>0)newInternal->rowCount = rowsToMove;
             else newInternal->rowCount = 0;
             newInternal->freeStart = payloadOffset-length;
-
-            uint16_t len=(oldInternal->pageNumber==1)? (MAX_PAYLOAD_SIZE_ROOT) : MAX_PAYLOAD_SIZE;
-            char* buff=new char[len];
-            memcpy(buff,oldInternal->payload,len);
-            uint16_t offset=FREE_START_DEFAULT;
-            for(uint16_t i = 0; i <= splitIndex; i++){
-                uint16_t oldOffset=oldInternal->slots[i].offset;
-                uint16_t buffOffset= oldOffset - FREE_END_DEFAULT;
-                memcpy(((char*)oldInternal) + offset-sizeof(uint32_t),buff+buffOffset,sizeof(uint32_t));
-                oldInternal->slots[i].offset=offset-sizeof(uint32_t);
-                offset-=sizeof(uint32_t);
-            }
-
-            oldInternal->freeStart=offset;
-            delete[] buff;
 
             oldInternal->dirty = true;
             newInternal->dirty = true;

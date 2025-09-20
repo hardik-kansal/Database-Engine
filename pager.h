@@ -129,7 +129,7 @@ struct Pager{
         uint32_t value;
         if(index<((pageNode*)curr)->rowCount){
         if(GET_PAGE_NO(curr)==1)memcpy(&value, ((char*)curr) + ((RootPageNode*)curr)->slots[index].offset, sizeof(uint32_t));  
-        else memcpy(&value, ((char*)curr) + ((pageNode*)curr)->slots[index].offset, sizeof(uint32_t));  
+        else {memcpy(&value, ((char*)curr) + ((pageNode*)curr)->slots[index].offset, sizeof(uint32_t));}  
         }
         else{
             if(GET_PAGE_NO(curr)==1)memcpy(&value, ((char*)curr) + PAGE_SIZE-(index+2)*sizeof(uint32_t), sizeof(uint32_t));  
