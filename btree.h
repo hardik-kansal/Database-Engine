@@ -186,7 +186,22 @@ class Bplustrees{
             page->rowCount++;
             page->freeStart -= payloadLength;
         }
-        
+        void defragLeaf(pageNode* leaf){
+            uint16_t len=(leaf->pageNumber==1)? (MAX_PAYLOAD_SIZE_ROOT) : MAX_PAYLOAD_SIZE;
+            char* buff=new char[len];
+            memcpy(buff,leaf->payload,len);
+            uint16_t offset=FREE_START_DEFAULT;
+            for(uint16_t i = 0; i < leaf->rowCount; i++){
+                uint16_t oldOffset=leaf->slots[i].offset;
+                uint16_t length=leaf->slots[i].length;
+                uint16_t buffOffset= oldOffset - FREE_END_DEFAULT;
+                memcpy(((char*)leaf) + offset-length,buff+buffOffset,length);
+                leaf->slots[i].offset=offset-length;
+                offset-=length;
+            }
+            leaf->freeStart=offset;
+            delete[] buff;
+        }
         // Split a leaf page and insert the new row
         void splitLeafAndInsert(pageNode* leaf, uint16_t index, uint64_t key, const char* payload, uint32_t payloadLength, vector<pageNode*>& path) {
             // Create new leaf page
@@ -210,7 +225,7 @@ class Bplustrees{
                 insertRowAt(newLeaf, index-splitIndex, key, payload, payloadLength);
 
             }
-            
+            defragLeaf(leaf);
             // Update parent or create new root
             if (path.size() == 1) {
                 leaf->pageNumber=new_page_no();
