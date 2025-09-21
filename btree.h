@@ -494,106 +494,389 @@ class Bplustrees{
             newInternal->dirty = true;
         }
 
-
-        /*
-        void updateParentKey(pageNode* page,uint16_t idx,vector<pageNode*> &path,uint64_t prevKey){
-            if(idx==0 && path.size()>1){
-                pageNode* parent=path[path.size()-2];
-                uint16_t id=ub(parent->slots,parent->rowCount,prevKey);
-                if(id>0){
-                    parent->slots[id-1].key=page->slots[0].key;
-                    parent->dirty=true;
-                }    
-            }
-        }
-        // if(index 0 deleted and not root) then  index 1 is accesssed here.
-        void deleteIdxLeaf(pageNode* page, uint16_t idx,vector<pageNode*> &path){
-           // shift payload
-            uint32_t len=page->slots[idx].length;
-            uint16_t offset = page->slots[idx].offset;
-            if(offset!=page->freeStart){
-                memmove(((char*)page)+page->freeStart+len,((char*)page)+page->freeStart,page->slots[idx].offset-page->freeStart);
-            }
-            // memmove make sure correct copying overllaping intervals
-            // memcpy doesnt do it.
-            // shift rowSlot
-            for(uint16_t i=idx+1;i<page->rowCount;i++){
-                page->slots[i-1]=page->slots[i];
-                page->slots[i-1].offset+=len;
-            }
-            page->freeStart+=len;
-            page->rowCount--;
-            page->dirty=true;
-        }
-        // leaf
-        pageNode* getChild(pageNode* parent,uint64_t key){
-            uint32_t page_no=pager->getPageNoPayload(parent,ub(parent->slots,parent->rowCount,key));
-            return pager->getPage(page_no);
-        }
-        void deleteKey(uint64_t key){
+        // Delete a key from the B+ tree
+        bool deleteKey(uint64_t key) {
             vector<pageNode*> path;
-            pageNode* page=root;
-            path.push_back(root);
-            while(page->type!=PAGE_TYPE_LEAF){
-                page=getChild(page,key);
-                path.push_back(page);
+            pageNode* curr = (pageNode*)root;
+            path.push_back(curr);
+            
+            // Navigate to the appropriate leaf page
+            while (curr->type != PAGE_TYPE_LEAF) {
+                uint16_t idx = ub(curr->slots, curr->rowCount, key);
+                curr = pager->getPage(pager->getPageNoPayload(curr, idx));
+                path.push_back(curr);
             }
-
-            uint16_t idx=lb(page->slots,page->rowCount,key);
-            if(idx==page->rowCount || page->slots[idx].key!=key){
-                cout<<"KEY DOES NOT EXIST"<<endl;
+            
+            // Check if key exists in leaf
+            uint16_t idx = lb(curr->slots, curr->rowCount, key);
+            if (idx == curr->rowCount || curr->slots[idx].key != key) {
+                return false; // Key not found
+            }
+            
+            // Delete from leaf and handle underflow
+            deleteFromLeaf(curr, idx, path);
+            return true;
+        }
+        
+        // Delete a key from a leaf node
+        void deleteFromLeaf(pageNode* leaf, uint16_t index, vector<pageNode*>& path) {
+            // Remove the key from the leaf
+            removeRowFromLeaf(leaf, index);
+            leaf->dirty = true;
+            
+            // Special case: if root is a leaf and becomes empty, that's fine
+            if (leaf == (pageNode*)root && leaf->rowCount == 0) {
+                return; // Empty root leaf is allowed
+            }
+            
+            // Check if leaf is underflowed
+            if (leaf->rowCount < M && path.size() > 1) {
+                handleLeafUnderflow(leaf, path);
+            }
+            pageNode* parent = path[path.size() - 2];
+            uint16_t leafIndex = findChildIndex(parent, leaf);
+            if(leafIndex>0 && index==0)parent->slots[leafIndex-1].key=leaf->slots[0].key;
+            // chanage in root if lefmost of root key subtree
+        }
+        
+        // Remove a row from a leaf node
+        void removeRowFromLeaf(pageNode* leaf, uint16_t index) {
+            // Shift slots to fill the gap
+            for (uint16_t i = index; i < leaf->rowCount - 1; i++) {
+                leaf->slots[i] = leaf->slots[i + 1];
+            }
+            leaf->rowCount--;
+            
+            // Defragment the leaf to reclaim space
+            defragLeaf(leaf);
+        }
+        
+        // Handle underflow in leaf nodes
+        void handleLeafUnderflow(pageNode* leaf, vector<pageNode*>& path) {
+            
+            pageNode* parent = path[path.size() - 2];
+            uint16_t leafIndex = findChildIndex(parent, leaf);  
+            
+            // Safety check - if leafIndex is 0 and we couldn't find the child, skip
+            if (leafIndex==parent->rowCount+1) {
                 return;
             }
-            if(page->rowCount-1>=M || path.size()==1){
-                uint64_t prevKey=page->slots[idx].key;
-                deleteIdxLeaf(page,idx,path);
-                updateParentKey(page,idx,path,prevKey);
-            }
-            else{
-                pageNode* parent=path[path.size()-2];
-                uint64_t prevPageKey=page->slots[idx].key;
-                uint16_t id=ub(parent->slots,parent->rowCount,prevPageKey);
-                // borroww right if exist and can do
-                if(id<parent->rowCount && pager->getPage(pager->getPageNoPayload(parent,id+1))->rowCount-1>=M){
-                    pageNode* rightSibling=pager->getPage(pager->getPageNoPayload(parent,id+1));
-                    uint32_t len=rightSibling->slots[0].length;
-                    uint16_t offset=rightSibling->slots[0].offset;
-                    uint64_t prevKey=rightSibling->slots[0].key;
-
-                    char* payload = new char[len];
-                    memcpy(payload,rightSibling->payload + offset,len);
-                    insertIntoLeaf(page,page->rowCount,prevKey,payload,path); 
-                    delete[] payload;
-                    // parent page is same for both leafs, so same path can be passed
-                    
-                    deleteIdxLeaf(rightSibling,0,path);
-                    updateParentKey(rightSibling,0,path,prevKey);
-                    deleteIdxLeaf(page,idx,path);
-                    updateParentKey(page,idx,path,prevPageKey);
-
+            
+            // Try to borrow from left sibling
+            if (leafIndex > 0) {
+                pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex - 1));
+                if (leftSibling && leftSibling->rowCount > M) {
+                    borrowFromLeftLeaf(leaf, leftSibling, parent, leafIndex - 1);
+                    return;
                 }
-                // borrow left if exit and can do
-                else if(id>0 && pager->getPage(pager->getPageNoPayload(parent,id-1))->rowCount-1>=M){
-                    pageNode* leftSibling=pager->getPage(pager->getPageNoPayload(parent,id-1));
-                    uint32_t len=leftSibling->slots[leftSibling->rowCount-1].length;
-                    uint16_t offset=leftSibling->slots[leftSibling->rowCount-1].offset;
-                    uint64_t prevKey=leftSibling->slots[leftSibling->rowCount-1].key;
-
-                    char* payload = new char[len];
-                    memcpy(payload,leftSibling->payload + offset,len);
-                    insertIntoLeaf(page,0,prevKey,payload,path); 
-                    deleteIdxLeaf(page,1,path); 
-                    delete[] payload;
-                    deleteIdxLeaf(leftSibling,leftSibling->rowCount-1,path);
-                    updateParentKey(page,0,path,prevPageKey); 
-
-                }
-                // merge
-                else{
-
-                }              
             }
-            */
+            
+            // Try to borrow from right sibling
+            if (leafIndex < parent->rowCount) {
+                pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex + 1));
+                if (rightSibling && rightSibling->rowCount > M) {
+                    borrowFromRightLeaf(leaf, rightSibling, parent, leafIndex);
+                    return;
+                }
+            }
+            
+            // Merge with sibling
+            // IF LeafIndex==0 means leftmost child
+            if (leafIndex > 0) {
+                // Merge with left sibling
+                pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex - 1));
+                if (leftSibling) {
+                    mergeLeafNodes(leftSibling, leaf, parent, leafIndex - 1, path);
+                }
+                // IF LeafIndex==0rowCount means righmost child
+            } else if (leafIndex < parent->rowCount) {
+                // Merge with right sibling
+                pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex + 1));
+                if (rightSibling) {
+                    mergeLeafNodes(leaf, rightSibling, parent, leafIndex, path);
+                }
+            }
+        }
+        
+        // Find the index of a child in its parent
+        uint16_t findChildIndex(pageNode* parent, pageNode* child) {
+            // Check regular slots first
+            for (uint16_t i = 0; i < =parent->rowCount; i++) {
+                if (pager->getPageNoPayload(parent, i) == child->pageNumber) {
+                    return i;
+                }
+            }
+            // If not found, this might be a root case or the child was already freed
+            return parent->rowCount+1;
+        }
+        
+        // Borrow a key from left leaf sibling
+        void borrowFromLeftLeaf(pageNode* leaf, pageNode* leftSibling, pageNode* parent, uint16_t parentIndex) {
+            // Move the rightmost key from left sibling to leaf
+            uint16_t keyToMove = leftSibling->rowCount - 1;
+            
+            // Insert at beginning of leaf
+            insertRowAt(leaf, 0, leftSibling->slots[keyToMove].key, 
+                       ((char*)leftSibling) + leftSibling->slots[keyToMove].offset, 
+                       leftSibling->slots[keyToMove].length);
+            
+            // Remove from left sibling
+            removeRowFromLeaf(leftSibling, keyToMove);
+            
+            // Update parent key
+            parent->slots[parentIndex].key = leaf->slots[0].key;
+            parent->dirty = true;
+            leftSibling->dirty = true;
+        }
+        
+        // Borrow a key from right leaf sibling
+        void borrowFromRightLeaf(pageNode* leaf, pageNode* rightSibling, pageNode* parent, uint16_t parentIndex) {
+            // Move the leftmost key from right sibling to leaf
+            uint16_t keyToMove = 0;
+            
+            // Insert at end of leaf
+            insertRowAt(leaf, leaf->rowCount, rightSibling->slots[keyToMove].key,
+                       ((char*)rightSibling) + rightSibling->slots[keyToMove].offset,
+                       rightSibling->slots[keyToMove].length);
+            
+            // Remove from right sibling
+            removeRowFromLeaf(rightSibling, keyToMove);
+            
+            // Update parent key
+            parent->slots[parentIndex].key = rightSibling->slots[0].key;
+            parent->dirty = true;
+            rightSibling->dirty = true;
+        }
+        
+        // Merge two leaf nodes
+        void mergeLeafNodes(pageNode* leftLeaf, pageNode* rightLeaf, pageNode* parent, uint16_t parentIndex, vector<pageNode*>& path) {
+            if (!leftLeaf || !rightLeaf || !parent) return; // Safety check
+            
+            // Move all keys from right leaf to left leaf
+            for (uint16_t i = 0; i < rightLeaf->rowCount; i++) {
+                insertRowAt(leftLeaf, leftLeaf->rowCount+i, rightLeaf->slots[i].key,
+                           ((char*)rightLeaf) + rightLeaf->slots[i].offset,
+                           rightLeaf->slots[i].length);
+            }
+            
+            // Remove the key from parent - use direct removal instead of recursive call
+            removeRowFromInternal(parent, parentIndex);
+            parent->dirty = true;
+
+            if(internal->rowCount==0 && path.size()==2){
+                uint32_t page_no=leftLeaf->pageNumber;
+                root=(RootPageNode*)leftLeaf;
+                root->trunkStart=trunkStart;
+                root->pageNumber=1;
+                pager->lruCache->put(1,root);
+                freePage(page_no);
+                return;
+            }
+            path.pop_back();
+            // Check if parent is underflowed and handle it
+            if (parent->rowCount < M && path.size() > 1) {
+                handleInternalUnderflow(parent, path);
+            }
+            
+            // Free the right leaf page
+            freePage(rightLeaf->pageNumber); //right leaf changed to trunkPage
+            leftLeaf->dirty = true;
+        }
+        
+        // Delete a key from an internal node
+        void deleteFromInternal(pageNode* internal, uint16_t index, vector<pageNode*>& path) {
+            // Remove the key from internal node
+            removeRowFromInternal(internal, index);
+            internal->dirty = true;
+            
+            // Check if internal node is underflowed
+
+            if (internal->rowCount < M && path.size() > 1) {
+                handleInternalUnderflow(internal, path);
+            }
+        }
+        
+        // Remove a row from an internal node
+        void removeRowFromInternal(pageNode* internal, uint16_t index) {
+            // Shift slots to fill the gap
+            uint16_t offset=internal->slot[index].offset;
+            for (uint16_t i = index; i < internal->rowCount - 1; i++) {
+                internal->slots[i] = internal->slots[i + 1];
+            }
+            internal->rowCount--;
+            internal->slots[index].offset=offset;
+            // Defragment the internal node
+            // internal node to defrag, righmost pagenumber offset in payload in internal
+            defragment(internal, internal->freeStart);
+        }
+        
+        // Handle underflow in internal nodes
+        void handleInternalUnderflow(pageNode* internal, vector<pageNode*>& path) {
+            if (path.size() < 2) return; // Safety check
+            
+            pageNode* parent = path[path.size() - 2];
+            uint16_t internalIndex = findChildIndex(parent, internal);
+            
+            // Safety check - if internalIndex is 0 and we couldn't find the child, skip
+            if (internalIndex==parent->rowCount+1) {
+                return;
+            }
+            
+            // Try to borrow from left sibling
+            if (internalIndex > 0) {
+                pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex - 1));
+                if (leftSibling && leftSibling->rowCount > M) {
+                    borrowFromLeftInternal(internal, leftSibling, parent, internalIndex - 1);
+                    return;
+                }
+            }
+            
+            // Try to borrow from right sibling
+            if (internalIndex < parent->rowCount) {
+                pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex + 1));
+                if (rightSibling && rightSibling->rowCount > M) {
+                    borrowFromRightInternal(internal, rightSibling, parent, internalIndex);
+                    return;
+                }
+            }
+            
+            // Merge with sibling
+            if (internalIndex > 0) {
+                // Merge with left sibling
+                pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex - 1));
+                if (leftSibling) {
+                    mergeInternalNodes(leftSibling, internal, parent, internalIndex - 1, path);
+                }
+            } else if (internalIndex < parent->rowCount) {
+                // Merge with right sibling
+                pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex + 1));
+                if (rightSibling) {
+                    mergeInternalNodes(internal, rightSibling, parent, internalIndex, path);
+                }
+            }
+        }
+        
+        // Borrow a key from left internal sibling
+        void borrowFromLeftInternal(pageNode* internal, pageNode* leftSibling, pageNode* parent, uint16_t parentIndex) {
+            // Get the rightmost child from left sibling
+            uint32_t childPageNo = pager->getPageNoPayload(leftSibling, leftSibling->rowCount);
+            
+            // Insert the parent key at the beginning of internal
+            insertInternalRowAt(internal, 0, parent->slots[parentIndex].key, childPageNo);
+            
+            // Update parent key with the rightmost key from left sibling
+            parent->slots[parentIndex].key = leftSibling->slots[leftSibling->rowCount - 1].key;
+            
+            // Remove the key from left sibling
+            removeRowFromInternal(leftSibling, leftSibling->rowCount - 1);
+            
+            parent->dirty = true;
+            leftSibling->dirty = true;
+        }
+        
+        // Borrow a key from right internal sibling
+        void borrowFromRightInternal(pageNode* internal, pageNode* rightSibling, pageNode* parent, uint16_t parentIndex) {
+            // Get the leftmost child from right sibling
+            uint32_t childPageNo = pager->getPageNoPayload(rightSibling, 0);
+            
+            // Insert the parent key at the end of internal
+            insertInternalRowAt(internal, internal->rowCount, parent->slots[parentIndex].key, childPageNo);
+            
+            // Update parent key with the leftmost key from right sibling
+            parent->slots[parentIndex].key = rightSibling->slots[0].key;
+            
+            // Remove the key from right sibling
+            removeRowFromInternal(rightSibling, 0);
+            
+            parent->dirty = true;
+            rightSibling->dirty = true;
+        }
+        
+        // Merge two internal nodes
+        void mergeInternalNodes(pageNode* leftInternal, pageNode* rightInternal, pageNode* parent, uint16_t parentIndex, vector<pageNode*>& path) {
+            if (!leftInternal || !rightInternal || !parent) return; // Safety check
+            
+            // Insert parent key
+            insertInternalRowAt(leftInternal, leftInternal->rowCount, parent->slots[parentIndex].key, 
+                               pager->getPageNoPayload(rightInternal, 0));
+            
+            // Move all keys from right internal to left internal
+            for (uint16_t i = 0; i < rightInternal->rowCount; i++) {
+                insertInternalRowAt(leftInternal, leftInternal->rowCount, rightInternal->slots[i].key,
+                                   pager->getPageNoPayload(rightInternal, i + 1));
+            }
+            
+            // Remove the key from parent - use direct removal instead of recursive call
+            removeRowFromInternal(parent, parentIndex);
+            parent->dirty = true;
+            
+            // Check if parent is underflowed and handle it
+            if (parent->rowCount < M && path.size() > 1) {
+                handleInternalUnderflow(parent, path);
+            } else if (parent == (pageNode*)root && parent->rowCount == 0) {
+                // This is the root and it's empty, handle root deletion
+                handleRootDeletion(leftInternal, rightInternal);
+            }
+            
+            // Free the right internal page
+            freePage(rightInternal->pageNumber);
+            
+            leftInternal->dirty = true;
+        }
+        
+        // Handle root deletion when root becomes empty
+        void handleRootDeletion(pageNode* leftChild, pageNode* rightChild) {
+            // If root is empty and has only one child, make that child the new root
+            if (root->rowCount == 0) {
+                // Use leftChild as the new root content
+                pageNode* newRootContent = leftChild;
+                
+                root->type = newRootContent->type;
+                root->rowCount = newRootContent->rowCount;
+                root->freeStart = newRootContent->freeStart;
+                root->freeEnd = newRootContent->freeEnd;
+                
+                // Copy slots and payload
+                memcpy(root->slots, newRootContent->slots, sizeof(RowSlot) * newRootContent->rowCount);
+                if (newRootContent->type == PAGE_TYPE_LEAF) {
+                    memcpy(root->payload, newRootContent->payload, MAX_PAYLOAD_SIZE_ROOT);
+                } else {
+                    memcpy(root->payload, newRootContent->payload, MAX_PAYLOAD_SIZE_ROOT);
+                }
+                
+                // Free the old child page
+                freePage(newRootContent->pageNumber);
+                root->dirty = true;
+            }
+        }
+        void createNewTrunkPage(uint32_t pageNumber){
+            TrunkPageNode* trunk = new TrunkPageNode();
+            trunk->pageNumber = pageNumber;
+            trunk->type = PAGE_TYPE_TRUNK;
+            trunk->prevTrunkPage = trunkStart;
+            trunk->rowCount = 0;
+            trunk->dirty = true;
+            root->trunkStart = trunk->pageNumber;
+            trunkStart = trunk->pageNumber;               
+            pager->lruCache->put(trunk->pageNumber, trunk);
+        }
+        // Free a page (add to trunk)
+        void freePage(uint32_t pageNumber) {
+            if (trunkStart == 1) {
+                // Create first trunk page
+                createNewTrunkPage(pageNumber);
+
+            } else {
+                TrunkPageNode* trunk = pager->getTrunkPage(trunkStart);
+                if (trunk->rowCount < NO_OF_TPAGES) {
+                    trunk->tPages[trunk->rowCount++] = pageNumber;
+                    trunk->dirty = true;
+                } else {
+                    // Create new trunk page
+                    createNewTrunkPage(pageNumber);
+                }
+            }
+        }
 
 };
 

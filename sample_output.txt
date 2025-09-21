@@ -1,5 +1,5 @@
 // COMPILE
-g++ -o dbms main.cpp 
+rm -f f1.db && g++ -o dbms main.cpp 
 
 // INPUT
 
@@ -101,7 +101,6 @@ i 21 h
 i 22 h
 i 23 h
 i 24 h
-i 24 3
 i 25 3
 i 26 h
 i 27 h
