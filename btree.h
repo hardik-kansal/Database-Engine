@@ -59,7 +59,7 @@ class Bplustrees{
                 else{
                     if(i>0){
                     cout<<"k: "<<node->slots[i-1].key<<" ";
-                    // cout<<"offset: "<<node->slots[i-1].offset<<" ";
+                    // cout<<"of: "<<node->slots[i-1].offset<<" ";
                     }
                     cout<<"p: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
@@ -76,7 +76,7 @@ class Bplustrees{
                 else{
                     if(i>0){
                         cout<<"k: "<<node->slots[i-1].key<<" ";
-                        // cout<<"offset: "<<node->slots[i-1].offset<<" ";
+                        // cout<<"of: "<<node->slots[i-1].offset<<" ";
                     }
                     cout<<"p: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
@@ -180,7 +180,9 @@ class Bplustrees{
             page->slots[index].offset = page->freeStart-payloadLength;
             page->slots[index].length = payloadLength;
             // Copy payload
+            // cout<<"here1"<<endl;
             memcpy(((char*)page) + page->freeStart-payloadLength, payload, payloadLength);
+            // cout<<"here2"<<endl;
 
             // Update page metadata
             page->rowCount++;
@@ -370,6 +372,8 @@ class Bplustrees{
             internal->slots[index].key = key;
             internal->slots[index].length = sizeof(uint32_t);
 
+            // inserting at righmost, rightmost pg becomes left child of new key
+            // pg to be inserted becomes righmost pg
             if(index==internal->rowCount){
                 internal->slots[index].offset = internal->freeStart; 
                 memcpy(((char*)internal)+ internal->freeStart-sizeof(uint32_t), &pageNumber, sizeof(uint32_t));
@@ -397,12 +401,11 @@ class Bplustrees{
             pager->lruCache->put(newInternal->pageNumber, newInternal);
             return newInternal;
         }
-        void defragment(pageNode* oldInternal,uint16_t  ind){
+        void defragment(pageNode* oldInternal,uint16_t  ind,uint16_t offset=FREE_START_DEFAULT){
             // DEFRAGMENTATION 
             uint16_t len=(oldInternal->pageNumber==1)? (MAX_PAYLOAD_SIZE_ROOT) : MAX_PAYLOAD_SIZE;
             char* buff=new char[len];
             memcpy(buff,oldInternal->payload,len);
-            uint16_t offset=FREE_START_DEFAULT;
             for(uint16_t i = 0; i < oldInternal->rowCount; i++){
                 uint16_t oldOffset=oldInternal->slots[i].offset;
                 uint16_t buffOffset= oldOffset - FREE_END_DEFAULT;
@@ -412,7 +415,7 @@ class Bplustrees{
             }
             // rightmost node
             memcpy(((char*)oldInternal) + offset-sizeof(uint32_t),buff+ind-FREE_END_DEFAULT,sizeof(uint32_t));
-
+            // cout<<*((uint32_t*)(buff+ind-FREE_END_DEFAULT))<<endl;
             oldInternal->freeStart=offset-sizeof(uint32_t);
             delete[] buff;
         }
@@ -514,12 +517,12 @@ class Bplustrees{
             }
             
             // Delete from leaf and handle underflow
-            deleteFromLeaf(curr, idx, path);
+            deleteFromLeaf(curr, idx, path,key);
             return true;
         }
         
         // Delete a key from a leaf node
-        void deleteFromLeaf(pageNode* leaf, uint16_t index, vector<pageNode*>& path) {
+        void deleteFromLeaf(pageNode* leaf, uint16_t index, vector<pageNode*>& path,uint64_t key) {
             // Remove the key from the leaf
             removeRowFromLeaf(leaf, index);
             leaf->dirty = true;
@@ -531,14 +534,27 @@ class Bplustrees{
             
             // Check if leaf is underflowed
             if (leaf->rowCount < M && path.size() > 1) {
+                // printNode(leaf);
                 handleLeafUnderflow(leaf, path);
             }
             pageNode* parent = path[path.size() - 2];
             uint16_t leafIndex = findChildIndex(parent, leaf);
-            if(leafIndex>0 && index==0)parent->slots[leafIndex-1].key=leaf->slots[0].key;
+            if(leafIndex>0 && index==0 && leafIndex<parent->rowCount)parent->slots[leafIndex-1].key=leaf->slots[0].key;
             // chanage in root if lefmost of root key subtree
+            // changeRootifLeftmost(leaf,index,key);
         }
-        
+        void changeRootifLeftmost(pageNode* leaf,uint16_t index,uint64_t key){
+            pageNode* curr = (pageNode*)root;
+            uint16_t idx = ub(curr->slots, curr->rowCount, key);
+            if(root->type==PAGE_TYPE_LEAF) return;
+            curr = pager->getPage(pager->getPageNoPayload(curr, idx));
+            // Navigate to the appropriate leafmost page of correspoding root key
+            // cout<<"y"<<endl;
+            while (curr->type != PAGE_TYPE_LEAF) {
+                curr = pager->getPage(pager->getPageNoPayload(curr, 0));
+            }            
+            if(leaf==curr && index==0 && idx>0)root->slots[idx-1].key=leaf->slots[0].key;
+        }
         // Remove a row from a leaf node
         void removeRowFromLeaf(pageNode* leaf, uint16_t index) {
             // Shift slots to fill the gap
@@ -566,6 +582,7 @@ class Bplustrees{
             if (leafIndex > 0) {
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex - 1));
                 if (leftSibling && leftSibling->rowCount > M) {
+                    cout<<"borrowing from left sibling"<<endl;
                     borrowFromLeftLeaf(leaf, leftSibling, parent, leafIndex - 1);
                     return;
                 }
@@ -575,6 +592,7 @@ class Bplustrees{
             if (leafIndex < parent->rowCount) {
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex + 1));
                 if (rightSibling && rightSibling->rowCount > M) {
+                    cout<<"borrowing from right sibling"<<endl;
                     borrowFromRightLeaf(leaf, rightSibling, parent, leafIndex);
                     return;
                 }
@@ -586,6 +604,7 @@ class Bplustrees{
                 // Merge with left sibling
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex - 1));
                 if (leftSibling) {
+                    cout<<"merging with left sibling"<<endl;
                     mergeLeafNodes(leftSibling, leaf, parent, leafIndex - 1, path);
                 }
                 // IF LeafIndex==0rowCount means righmost child
@@ -593,6 +612,7 @@ class Bplustrees{
                 // Merge with right sibling
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex + 1));
                 if (rightSibling) {
+                    cout<<"merging with right sibling"<<endl;
                     mergeLeafNodes(leaf, rightSibling, parent, leafIndex, path);
                 }
             }
@@ -601,7 +621,7 @@ class Bplustrees{
         // Find the index of a child in its parent
         uint16_t findChildIndex(pageNode* parent, pageNode* child) {
             // Check regular slots first
-            for (uint16_t i = 0; i < =parent->rowCount; i++) {
+            for (uint16_t i = 0; i <= parent->rowCount; i++) {
                 if (pager->getPageNoPayload(parent, i) == child->pageNumber) {
                     return i;
                 }
@@ -654,64 +674,70 @@ class Bplustrees{
             
             // Move all keys from right leaf to left leaf
             for (uint16_t i = 0; i < rightLeaf->rowCount; i++) {
-                insertRowAt(leftLeaf, leftLeaf->rowCount+i, rightLeaf->slots[i].key,
+                // cout<<i<<endl;
+                insertRowAt(leftLeaf, leftLeaf->rowCount, rightLeaf->slots[i].key,
                            ((char*)rightLeaf) + rightLeaf->slots[i].offset,
                            rightLeaf->slots[i].length);
             }
-            
+            // cout<<"1"<<endl;
+            // printNode(leftLeaf);
+            // cout<<"2"<<endl;
+
             // Remove the key from parent - use direct removal instead of recursive call
+            uint32_t parentIndex_lcpageNumber=pager->getPageNoPayload(parent,parentIndex);
+            printNode(parent);
             removeRowFromInternal(parent, parentIndex);
+            printNode(parent);
+
             parent->dirty = true;
 
-            if(internal->rowCount==0 && path.size()==2){
+            if(parent->rowCount==0 && path.size()==2){
                 uint32_t page_no=leftLeaf->pageNumber;
                 root=(RootPageNode*)leftLeaf;
                 root->trunkStart=trunkStart;
                 root->pageNumber=1;
                 pager->lruCache->put(1,root);
                 freePage(page_no);
+                cout<<"root changed to left internal"<<endl;
+
                 return;
             }
-            path.pop_back();
             // Check if parent is underflowed and handle it
-            if (parent->rowCount < M && path.size() > 1) {
-                handleInternalUnderflow(parent, path);
+            if (parent->rowCount < M && path.size() > 2) {
+                path.pop_back();
+                cout<<"handleInternalUnderflow"<<endl;
+                handleInternalUnderflow(parent, path,parentIndex_lcpageNumber);
             }
             
             // Free the right leaf page
+            // cout<<"4"<<endl;
             freePage(rightLeaf->pageNumber); //right leaf changed to trunkPage
+            // cout<<"5"<<endl;
+
             leftLeaf->dirty = true;
         }
         
-        // Delete a key from an internal node
-        void deleteFromInternal(pageNode* internal, uint16_t index, vector<pageNode*>& path) {
-            // Remove the key from internal node
-            removeRowFromInternal(internal, index);
-            internal->dirty = true;
-            
-            // Check if internal node is underflowed
-
-            if (internal->rowCount < M && path.size() > 1) {
-                handleInternalUnderflow(internal, path);
-            }
-        }
         
         // Remove a row from an internal node
         void removeRowFromInternal(pageNode* internal, uint16_t index) {
             // Shift slots to fill the gap
-            uint16_t offset=internal->slot[index].offset;
+            uint16_t offset=internal->slots[index].offset;
             for (uint16_t i = index; i < internal->rowCount - 1; i++) {
                 internal->slots[i] = internal->slots[i + 1];
             }
             internal->rowCount--;
-            internal->slots[index].offset=offset;
+            if(internal->rowCount!=0)internal->slots[index].offset=offset;
+            else internal->freeStart=internal->slots[index].offset;
+            // printNode(internal);
             // Defragment the internal node
             // internal node to defrag, righmost pagenumber offset in payload in internal
-            defragment(internal, internal->freeStart);
+            if(internal->pageNumber==1)defragment(internal,internal->freeStart,FREE_START_DEFAULT_ROOT);
+            else defragment(internal, internal->freeStart);
+
         }
         
         // Handle underflow in internal nodes
-        void handleInternalUnderflow(pageNode* internal, vector<pageNode*>& path) {
+        void handleInternalUnderflow(pageNode* internal, vector<pageNode*>& path,uint32_t parentIndex_lcpageNumber) {
             if (path.size() < 2) return; // Safety check
             
             pageNode* parent = path[path.size() - 2];
@@ -726,6 +752,7 @@ class Bplustrees{
             if (internalIndex > 0) {
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex - 1));
                 if (leftSibling && leftSibling->rowCount > M) {
+                    cout<<"borrowing from left sibling internal"<<endl;
                     borrowFromLeftInternal(internal, leftSibling, parent, internalIndex - 1);
                     return;
                 }
@@ -734,8 +761,10 @@ class Bplustrees{
             // Try to borrow from right sibling
             if (internalIndex < parent->rowCount) {
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex + 1));
+
                 if (rightSibling && rightSibling->rowCount > M) {
-                    borrowFromRightInternal(internal, rightSibling, parent, internalIndex);
+                    cout<<"borrowing from right sibling internal"<<endl;
+                    borrowFromRightInternal(internal, rightSibling, parent, internalIndex,parentIndex_lcpageNumber);
                     return;
                 }
             }
@@ -745,58 +774,88 @@ class Bplustrees{
                 // Merge with left sibling
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex - 1));
                 if (leftSibling) {
+                    cout<<"merging with left sibling internal"<<endl;
                     mergeInternalNodes(leftSibling, internal, parent, internalIndex - 1, path);
                 }
             } else if (internalIndex < parent->rowCount) {
                 // Merge with right sibling
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex + 1));
                 if (rightSibling) {
+                    cout<<"merging with right sibling internal"<<endl;
                     mergeInternalNodes(internal, rightSibling, parent, internalIndex, path);
                 }
             }
         }
-        
+        void insertInternalAtStarting(pageNode* internal,uint64_t key,uint32_t pageNumber){
+            for (uint16_t i = internal->rowCount; i >0; i--) {
+                internal->slots[i] = internal->slots[i - 1];
+                internal->slots[i].offset-=sizeof(uint32_t);
+            }
+            
+            // Insert new slot
+            internal->slots[0].key = key;
+            internal->slots[0].length = sizeof(uint32_t);
+            internal->slots[0].offset=FREE_START_DEFAULT-sizeof(uint32_t);
+            memmove(((char*)internal)+internal->freeStart-sizeof(uint32_t),((char*)internal)+internal->freeStart,sizeof(uint32_t)*internal->rowCount+1);
+            memcpy(((char*)internal)+internal->slots[0].offset,&pageNumber,sizeof(uint32_t));
+            
+            // Update metadata
+            internal->rowCount++;
+            internal->freeStart -= sizeof(uint32_t);
+        }
+        void removeInternalAtStarting(pageNode* internal){
+            for (uint16_t i = 0; i < internal->rowCount - 1; i++) {
+                internal->slots[i] = internal->slots[i + 1];
+            }
+            internal->rowCount--;
+            if(internal->pageNumber==1)defragment(internal,internal->freeStart,FREE_START_DEFAULT_ROOT);
+            else defragment(internal, internal->freeStart);
+        }
         // Borrow a key from left internal sibling
         void borrowFromLeftInternal(pageNode* internal, pageNode* leftSibling, pageNode* parent, uint16_t parentIndex) {
             // Get the rightmost child from left sibling
             uint32_t childPageNo = pager->getPageNoPayload(leftSibling, leftSibling->rowCount);
-            
             // Insert the parent key at the beginning of internal
-            insertInternalRowAt(internal, 0, parent->slots[parentIndex].key, childPageNo);
+            insertInternalAtStarting(internal,parent->slots[parentIndex].key,childPageNo);
+
             
             // Update parent key with the rightmost key from left sibling
             parent->slots[parentIndex].key = leftSibling->slots[leftSibling->rowCount - 1].key;
             
             // Remove the key from left sibling
-            removeRowFromInternal(leftSibling, leftSibling->rowCount - 1);
+            leftSibling->rowCount--;
             
             parent->dirty = true;
+            internal->dirty=true;
             leftSibling->dirty = true;
         }
         
         // Borrow a key from right internal sibling
-        void borrowFromRightInternal(pageNode* internal, pageNode* rightSibling, pageNode* parent, uint16_t parentIndex) {
+        void borrowFromRightInternal(pageNode* internal, pageNode* rightSibling, pageNode* parent, uint16_t parentIndex,uint32_t parentIndex_lcpageNumber) {
             // Get the leftmost child from right sibling
             uint32_t childPageNo = pager->getPageNoPayload(rightSibling, 0);
-            
+            // cout<<childPageNo<<endl;
+            // printNode(internal);
             // Insert the parent key at the end of internal
             insertInternalRowAt(internal, internal->rowCount, parent->slots[parentIndex].key, childPageNo);
-            
+            memcpy((char*)internal+internal->slots[0].offset,&parentIndex_lcpageNumber,sizeof(uint32_t));
             // Update parent key with the leftmost key from right sibling
             parent->slots[parentIndex].key = rightSibling->slots[0].key;
             
             // Remove the key from right sibling
-            removeRowFromInternal(rightSibling, 0);
+            removeInternalAtStarting(rightSibling);
             
             parent->dirty = true;
+            internal->dirty=true;
             rightSibling->dirty = true;
         }
         
         // Merge two internal nodes
         void mergeInternalNodes(pageNode* leftInternal, pageNode* rightInternal, pageNode* parent, uint16_t parentIndex, vector<pageNode*>& path) {
             if (!leftInternal || !rightInternal || !parent) return; // Safety check
-            
-            // Insert parent key
+            // printNode(leftInternal);
+            // Insert parent key ->parentkey is offset is associated with righmost child of leftInternal.
+            // page no new added will be leftmost of rightInternal.
             insertInternalRowAt(leftInternal, leftInternal->rowCount, parent->slots[parentIndex].key, 
                                pager->getPageNoPayload(rightInternal, 0));
             
@@ -808,15 +867,36 @@ class Bplustrees{
             
             // Remove the key from parent - use direct removal instead of recursive call
             removeRowFromInternal(parent, parentIndex);
+
+            uint32_t parentIndex_lcpageNumber=pager->getPageNoPayload(parent,0);
+
             parent->dirty = true;
-            
-            // Check if parent is underflowed and handle it
-            if (parent->rowCount < M && path.size() > 1) {
-                handleInternalUnderflow(parent, path);
-            } else if (parent == (pageNode*)root && parent->rowCount == 0) {
-                // This is the root and it's empty, handle root deletion
-                handleRootDeletion(leftInternal, rightInternal);
+            // since root payload starts from PAGE_SIZE -sizeof(uint32_t) ->trunkStart
+            if (parent->pageNumber==1 && parent->rowCount == 0) {
+                uint32_t page_no=leftInternal->pageNumber;
+                // printNode(leftInternal);
+                root->freeStart=leftInternal->freeStart-sizeof(uint32_t);
+                // cout<<root->freeStart<<endl;
+                memcpy(root->slots,leftInternal->slots,sizeof(RowSlot)*(leftInternal->rowCount));
+                memcpy(((char*)root)+root->freeStart,((char*)leftInternal)+leftInternal->freeStart,PAGE_SIZE-leftInternal->freeStart);
+                root->pageNumber=1;
+                root->rowCount=leftInternal->rowCount;
+                root->trunkStart=trunkStart;
+                root->type=PAGE_TYPE_INTERIOR;
+                for(uint16_t i=0;i<leftInternal->rowCount;i++){
+                    root->slots[i].offset-=sizeof(uint32_t);
+                }
+                freePage(page_no);
+                // printRootNode(root);
+                // cout<<*((uint32_t*)root->payload+root->freeStart)<<endl;
+                return;
             }
+            // Check if parent is underflowed and handle it
+            else if (parent->rowCount < M && path.size() > 2) {
+                path.pop_back();
+                cout<<"handleInternalUnderflowAgain"<<endl;
+                handleInternalUnderflow(parent, path,parentIndex_lcpageNumber);
+            } 
             
             // Free the right internal page
             freePage(rightInternal->pageNumber);
@@ -824,31 +904,6 @@ class Bplustrees{
             leftInternal->dirty = true;
         }
         
-        // Handle root deletion when root becomes empty
-        void handleRootDeletion(pageNode* leftChild, pageNode* rightChild) {
-            // If root is empty and has only one child, make that child the new root
-            if (root->rowCount == 0) {
-                // Use leftChild as the new root content
-                pageNode* newRootContent = leftChild;
-                
-                root->type = newRootContent->type;
-                root->rowCount = newRootContent->rowCount;
-                root->freeStart = newRootContent->freeStart;
-                root->freeEnd = newRootContent->freeEnd;
-                
-                // Copy slots and payload
-                memcpy(root->slots, newRootContent->slots, sizeof(RowSlot) * newRootContent->rowCount);
-                if (newRootContent->type == PAGE_TYPE_LEAF) {
-                    memcpy(root->payload, newRootContent->payload, MAX_PAYLOAD_SIZE_ROOT);
-                } else {
-                    memcpy(root->payload, newRootContent->payload, MAX_PAYLOAD_SIZE_ROOT);
-                }
-                
-                // Free the old child page
-                freePage(newRootContent->pageNumber);
-                root->dirty = true;
-            }
-        }
         void createNewTrunkPage(uint32_t pageNumber){
             TrunkPageNode* trunk = new TrunkPageNode();
             trunk->pageNumber = pageNumber;

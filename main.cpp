@@ -63,9 +63,9 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
       if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
       return PREPARE_SUCCESS;
     }
-    if (strncmp(input_buffer->buffer, "delete",6) == 0) {   // strncp reads only first 6 bytes
+    if (strncmp(input_buffer->buffer, "d",1) == 0) {   // strncp reads only first 6 bytes
         statement->type = STATEMENT_DELETE;
-        int args_assigned=sscanf(input_buffer->buffer,"delete %lu",&(statement->row.key));
+        int args_assigned=sscanf(input_buffer->buffer,"d %lu",&(statement->row.key));
         if(args_assigned<1)return PREPARE_UNRECOGNIZED_STATEMENT;
         return PREPARE_SUCCESS;
       }
@@ -141,7 +141,7 @@ executeResult execute_modify(Statement* statement, Table* table) {
 executeResult execute_delete(Statement* statement, Table* table) {
     bool deleted = table->bplusTrees->deleteKey(statement->row.key);
     if (deleted) {
-        cout << "Key " << statement->row.key << " deleted successfully" << endl;
+        cout << "Key " << statement->row.key<< "  success" << endl;
     } else {
         cout << "Key " << statement->row.key << " not found" << endl;
     }
