@@ -194,7 +194,7 @@ void convertTrunkPageToLittleEndian(void* node,uint8_t* temp){
 }
 
 
-void convertToLittleEndian(void* node,uint8_t* temp){
+void swapEndian(void* node,uint8_t* temp){
     // interior,leaf
     if(GET_PAGE_TYPE(node)==0 || GET_PAGE_TYPE(node)==1){
         convertHeaderToLittleEndian(node,temp);
