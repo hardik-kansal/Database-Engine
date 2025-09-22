@@ -1,0 +1,27 @@
+rm -f f1.db && g++ -o dbms main.cpp 
+./dbms <<EOF
+s*
+i 7 1
+i 2 1
+i 9 1
+i 4 1
+i 1 1
+i 10 1
+i 3 1
+i 6 1
+i 8 1
+i 5 1
+s*
+d 7
+d 2
+d 9
+d 4
+d 1
+d 10
+d 3
+d 6
+d 8
+d 5
+s*
+.exit
+EOF

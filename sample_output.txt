@@ -1,0 +1,201 @@
+// COMPILE
+rm -f f1.db && g++ -o dbms main.cpp 
+
+// INPUT
+
+rm -f f1.db && g++ -o dbms main.cpp 
+./dbms <<EOF
+i 8 2
+i 9 2
+i 15 3
+i 1 1
+i 2 1
+i 3 1
+i 19 3
+i 10 2
+i 11 2
+i 12 2
+i 13 3
+i 14 3
+i 4 1
+i 5 2
+i 6 2
+i 7 2
+i 16 3
+i 17 3
+i 20 3
+i 18 3
+i 21 h
+i 22 h
+i 23 h
+i 24 h
+i 25 3
+i 26 h
+i 27 h
+i 28 h
+i 29 h
+i 30 3
+i 31 3
+i 32 h
+i 33 h
+i 34 h
+i 35 h
+i 36 3
+i 37 3
+i 38 h
+i 39 h
+i 40 h
+i 41 h
+.exit
+EOF
+
+
+./dbms <<EOF
+d 8 
+d 9 
+d 15 
+d 1 
+d 2 
+d 3 
+d 19 
+d 10 
+d 11 
+d 12 
+d 13 
+d 14 
+d 4 
+d 5 
+d 6 
+d 7 
+d 16 
+d 17 
+d 20 
+d 18 
+d 21 
+d 22 
+d 23 
+d 24 
+d 25 
+d 26 
+d 27 
+d 28 
+d 29 
+d 30 
+d 31 
+d 32 
+d 33 
+d 34 
+d 35 
+d 36 
+d 37 
+d 38 
+d 39 
+d 40 
+d 41 
+.exit
+EOF
+
+
+// INPUT TOGETHER
+
+./dbms <<EOF
+i 8 2
+i 9 2
+i 15 3
+i 1 1
+i 2 1
+i 3 1
+i 19 3
+i 10 2
+i 11 2
+i 12 2
+i 13 3
+i 14 3
+i 4 1
+i 5 2
+i 6 2
+i 7 2
+i 16 3
+i 17 3
+i 20 3
+i 18 3
+i 21 h
+i 22 h
+i 23 h
+i 24 h
+i 25 3
+i 26 h
+i 27 h
+i 28 h
+i 29 h
+i 30 3
+i 31 3
+i 32 h
+i 33 h
+i 34 h
+i 35 h
+i 36 3
+i 37 3
+i 38 h
+i 39 h
+i 40 h
+i 41 h
+s*
+.exit
+EOF
+
+// OUTPUT 
+
+[ p: 28 k: 22 p: 27 ]    
+[ p: 9 k: 10 p: 8 k: 16 p: 14 ]    [ p: 18 k: 28 p: 22 k: 34 p: 26 ]    
+[ p: 3 k: 3 p: 7 k: 5 p: 10 k: 8 p: 2 ]    [ p: 4 k: 12 p: 5 k: 14 p: 6 ]    [ p: 11 k: 18 p: 12 k: 20 p: 13 ]    [ p: 15 k: 24 p: 16 k: 26 p: 17 ]    [ p: 19 k: 30 p: 20 k: 32 p: 21 ]    [ p: 23 k: 36 p: 24 k: 38 p: 25 ]    
+[ lk: 1 lk: 2 ]    [ lk: 3 lk: 4 ]    [ lk: 5 lk: 6 lk: 7 ]    [ lk: 8 lk: 9 ]    [ lk: 10 lk: 11 ]    [ lk: 12 lk: 13 ]    [ lk: 14 lk: 15 ]    [ lk: 16 lk: 17 ]    [ lk: 18 lk: 19 ]    [ lk: 20 lk: 21 ]    [ lk: 22 lk: 23 ]    [ lk: 24 lk: 25 ]    [ lk: 26 lk: 27 ]    [ lk: 28 lk: 29 ]    [ lk: 30 lk: 31 ]    [ lk: 32 lk: 33 ]    [ lk: 34 lk: 35 ]    [ lk: 36 lk: 37 ]    [ lk: 38 lk: 39 lk: 40 lk: 41 ]    
+ :success
+
+
+
+./dbms <<EOF
+d 8 
+d 9 
+d 15 
+d 1 
+d 2 
+d 3 
+d 19 
+d 10 
+d 11 
+d 12 
+d 13 
+d 14 
+d 4 
+d 5 
+d 6 
+d 7 
+d 16 
+d 17 
+d 20 
+d 18 
+d 21 
+d 22 
+d 23 
+d 24 
+d 25 
+d 26 
+d 27 
+d 28 
+d 29 
+d 30 
+d 31 
+d 32 
+d 33 
+d 34 
+d 35 
+d 36 
+d 37 
+d 38 
+d 39 
+d 40 
+d 41 
+s*
+.exit
+EOF

@@ -1,84 +1,102 @@
-# DBMS from Scratch in C++ (using B+ Trees)
+# Custom DBMS with B+ Tree, Slotted Pages, and LRU Pager
 
 ## Overview
-This project is a simple, educational database management system (DBMS) implemented in C++. It uses B+ trees for efficient indexing and storage of rows. The system supports basic SQL-like commands (`insert`, `select`, `modify`) and persists data to disk.
+This project implements a **minimal database engine in C++** with the following features:
+
+- **B+ Tree Index** over fixed-size pages for efficient key-based lookups.
+- **Slotted-Page Layout** for records with a fixed key and variable-length payload.
+- **Pager Layer with LRU Cache** and write-back flushing.
+- **Simple REPL** supporting `insert` and `select` commands.
+
+This project demonstrates **core database concepts** including page management, indexing, and caching.
 
 ---
 
-## Features
-- **Insert, Select, Modify**: Add, retrieve, and update rows with an integer ID and a fixed-size username.
-- **B+ Tree Indexing**: Fast in-memory indexing for both row number and row ID.
-- **Persistence**: Data is stored in a binary file (`f1.db`) and loaded into memory as needed.
-- **Paging**: Data is managed in pages for efficient disk I/O.
-- **Command Line Interface**: Simple REPL for interacting with the database.
+## Key Components
+
+| File | Description |
+|------|-------------|
+| **enums.h** | Core enums for statement parsing, execution results, and page types. |
+| **headerfiles.h** | Common includes and constants: <br>- `PAGE_SIZE = 4096` <br>- `PAGE_HEADER_SIZE = 14` <br>- `MAX_ROWS = variable` <br>- Slotted-page metadata (`RowSlot`, `pageNode`, payload sizing). |
+| **pages_schema.h** | On-disk page layout (`Page`) and row schema for parsing/serializing. |
+| **LRU.h** | Intrusive LRU cache for page frames with O(1) get/put. |
+| **pager.h** | Pager that maps page numbers to frames via LRU, performs read/write, and `flushAll`. |
+| **btree.h** | B+ tree implementation: insert, split leaf/internal nodes, root creation, breadth-first printing. |
+| **utils.h** | Lower/upper bound helpers over `RowSlot[]` for ordered key operations. |
+| **main.cpp** | REPL and wiring of Pager and B+ tree; handles `.exit`, `insert`, and `select`. |
 
 ---
 
-## Usage
+## Runtime Page Frame (`pageNode`)
+
+- Mirrors on-disk `Page` with a `dirty` bit for write-back.
+- Managed by `LRUCache` via the `Pager`.
+
+---
+
+## B+ Tree
+
+- Search descends using upper bound on interior nodes.
+- Insert finds the leaf, inserts or splits it; splits may cascade up to the root.
+- Root split promotes a new interior root at page 1; pages are numbered incrementally.
+- `printTree()` prints the tree level by level.
+
+---
+
+## Pager and LRU
+
+- `Pager::getPage(n)`: fetch a page from LRU or read from file and materialize to `pageNode`.
+- `Pager::writePage(node)`: write a frame back to disk.
+- `Pager::flushAll()`: flush all dirty frames in LRU on shutdown.
+
+---
+
+## REPL Commands
+
+- `insert <key:uint64> <payload:string>`  
+  Inserts a row. If the key already exists, the current implementation ignores the update.
+
+- `select`  
+  Prints the B+ tree in level-order with keys and child page numbers.
+
+- `.exit`  
+  Flushes all pages and exits the program.
+
+---
+
+## Build & Run
 
 ### Build
 ```bash
-g++ -std=c++17 main.cpp -o dbms
+g++ -std=gnu++17 -O2 -Wall -Wextra -o db main.cpp
+./db
 ```
 
-### Run
+By default, the program opens/creates f1.db with an LRU cache capacity of 256.
+
+Usage Examples
+
 ```bash
-./dbms
+db >insert 1 alice
+ :success
+db >insert 2 bob
+ :success
+db >select
+[ leafkey: 1 leafkey: 2 ]
+ :success
+db >.exit
 ```
 
-### Example Session
-```
-db > insert 1 alice
- :success
-db > insert 2 bob
- :success
-db > select
-1 alice
-2 bob
- :success
-db > modify 2 charlie
- :success
-db > select
-1 alice
-2 charlie
- :success
-db > .exit
-```
+## Notes and Limitations
 
----
+- MAX_ROWS is set to 4 for testing; can be adjusted in headerfiles.h.
 
-## Supported Commands
-- `insert <id> <username>`: Insert a new row.
-- `select`: List all rows.
-- `modify <id> <username>`: Update the username for a given ID.
-- `.exit`: Save and exit.
+- No deletion, no update (modify is parsed but unused), no recovery or transactions.
 
----
+- Interior node payload stores child page numbers; access via Pager::getPageNoPayload.
 
-## File Structure
-- `main.cpp`: Main program logic and REPL.
-- `row_schema.h`: Row, table, pager, and cursor structures and serialization logic.
-- `enums.h`: Enum definitions for command and execution results.
-- `Bplustree/`: B+ tree implementation.
-- `f1.db`: Database file (created at runtime).
+- Page 1 is reserved for the current root; page numbers auto-increment on allocations.
 
----
+## File Overview Diagram (Logical)
 
-## Implementation Details
-- **Row Format**: Each row contains an `id` (integer) and a `username` (fixed 8 chars).
-- **Indexing**: Two B+ trees are used: one for row data, one for fast ID lookup.
-- **Serialization**: Rows are serialized/deserialized using `memcpy` for speed.
-- **Paging**: Data is read/written in 4KB pages.
-
----
-
-## Requirements
-- Linux OS (uses POSIX file I/O)
-- C++17 or later
-- No external dependencies
-
----
-
-## Notes
-- This project is for educational purposes and is not production-ready.
-- The code is intentionally simple to illustrate core DBMS concepts.
+![DBMS Architecture](dbms3.png)
