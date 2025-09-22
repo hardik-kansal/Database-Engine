@@ -156,8 +156,12 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
 ## Constants
 
 - `PAGE_SIZE = 4096`
-- `PAGE_HEADER_SIZE = 14` (`pageNumber`, `type` (leaf/interior), `rowCount`, `freeStart`, `freeEnd`)
-- `FREE_START_DEFAULT`, `FREE_END_DEFAULT` delimit payload free space
+- `ROW_SLOT_SIZE = 14`
+- `PAGE_HEADER_SIZE = 14` 
+- `FREE_START_DEFAULT = 4096`
+- `FREE_START_DEFAULT_ROOT = 4092`
+- `FREE_END_DEFAULT = PAGE_HEADER_SIZE + ROW_SLOT_SIZE * MAX_ROWS` 
+- `NO_OF_TPAGES (trunk) = 2040` 
 
 
 
@@ -277,4 +281,10 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 - No concurrency support yet.
 - Only works on machine based on 2's complement arithmatics :)
 
+
+
+## Struct Layout 
+<div align="center">
+<img src="dbms_final.png" alt="B+ Tree Diagram" width="80%">
+</div>
 
