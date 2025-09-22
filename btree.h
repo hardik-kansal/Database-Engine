@@ -554,9 +554,11 @@ cout<<"split leaf and index<splitIndex"<<endl;
                 // printNode(leaf);
 
             }
+            if(path.size()>1){
             pageNode* parent = path[path.size() - 2];
             uint16_t leafIndex = findChildIndex(parent, leaf);
             if(leafIndex>0 && index==0 && leafIndex<parent->rowCount)parent->slots[leafIndex-1].key=leaf->slots[0].key;
+            }
             // chanage in root if lefmost of root key subtree
             // changeRootifLeftmost(leaf,index,key);
         }
