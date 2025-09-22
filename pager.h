@@ -5,6 +5,7 @@
 #include "utils.h"
 
 
+
 // total size -> 24 bytes
 struct Pager{
 
@@ -24,10 +25,11 @@ struct Pager{
             Page rawPage{};
             ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
             if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
-            if(!checkIfLittleEndian()){
+            if(!ifLe){
+                reading = true;
                 uint8_t* temp=new uint8_t[PAGE_SIZE];
                 swapEndian(&rawPage,temp);
-                memcpy(temp,&rawPage,PAGE_SIZE);
+                memcpy(&rawPage,temp,PAGE_SIZE);
                 delete[] temp;
             }
             
@@ -61,10 +63,11 @@ struct Pager{
             if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
 
             // convert littleEndiness on disk RootPage if machine bigEndian
-            if(!checkIfLittleEndian()){
+            if(!ifLe){
+                reading = true;
                 uint8_t* temp=new uint8_t[PAGE_SIZE];
                 swapEndian(&rawPage,temp);
-                memcpy(temp,&rawPage,PAGE_SIZE);
+                memcpy(&rawPage,temp,PAGE_SIZE);
                 delete[] temp;
             }
             
@@ -93,10 +96,11 @@ struct Pager{
             ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
             if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
             // convert littleEndiness on disk TrunkPage if machine bigEndian
-            if(!checkIfLittleEndian()){
+            if(!ifLe){
+                reading = true;
                 uint8_t* temp=new uint8_t[PAGE_SIZE];
                 swapEndian(&rawPage,temp);
-                memcpy(temp,&rawPage,PAGE_SIZE);
+                memcpy(&rawPage,temp,PAGE_SIZE);
                 delete[] temp;
             }
             
@@ -119,11 +123,12 @@ struct Pager{
         off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
         if(offset<0)exit(EXIT_FAILURE);
         // always write to disk in littleEndainess
-        if(checkIfLittleEndian()){
+        if(ifLe){
             ssize_t bytes_written = write(this->file_descriptor,node,PAGE_SIZE);
             if (bytes_written<0) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
         }
         else{
+            reading=false;
             uint8_t* temp = new uint8_t[PAGE_SIZE];
             swapEndian(node,temp);
             ssize_t bytes_written = write(this->file_descriptor,temp,PAGE_SIZE);

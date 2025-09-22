@@ -1,29 +1,111 @@
 #ifndef UTILLS_H
 #define UTILLS_H
 #include "headerfiles.h"
-#define GET_DIRTY(ptr, size) (*(bool*)(((unsigned char*)(ptr)) + (size) - 1))
-
-// header
-#define GET_PAGE_NO(ptr) *((uint32_t*)(ptr))
-#define GET_PAGE_TYPE(ptr) *((uint32_t*)(ptr)+1)
-#define GET_ROW_COUNT(ptr) *((uint16_t*)(ptr)+4)
-#define GET_FREE_START(ptr) *((uint16_t*)(ptr)+5)
-#define GET_FREE_END(ptr) *((uint16_t*)(ptr)+6)
 
 
-// RowSlot
-#define GET_ROW_SLOT_KEY(ptr,i) *((uint64_t*)(ptr)+14+i*14)
-#define GET_ROW_SLOT_OFFSET(ptr,i) *((uint16_t*)(ptr)+14+i*14+8)
-#define GET_ROW_SLOT_LENGTH(ptr,i) *((uint32_t*)(ptr)+14+i*14+10)
+// Global flag to indicate reading or writing
+inline bool reading;
+
+// extern make sure wherever this var included, points to single var.
+// This is only declaration, not defining and allocating memory.
+// Define it anywhere once not in a header.
+
+// inline increase compiler preformance by copying var or function value at 
+// each place it is used. So points to same &var value everywhere.
 
 
-// TrunkPage
-#define GET_PREV_TRUNK_PAGE(ptr) *((uint32_t*)(ptr)+3)
-#define GET_ROW_COUNT_TRUNK(ptr) *((uint32_t*)(ptr)+2)
+// 1 if little endian system
+static inline bool checkIfLittleEndian() {
+    uint32_t test = 1;
+    return *((uint8_t*)&test) == 1;
+}
+inline int ifLe=checkIfLittleEndian();
 
-// RootNode
-#define GET_TRUNK_START(ptr) *(uint32_t*)(((uint8_t*)(ptr)+PAGE_SIZE-sizeof(uint32_t)))
 
+// PAGE HEADER 
+
+static inline bool GET_DIRTY(void* ptr, size_t size) {
+    return *(bool*)((uint8_t*)ptr + size - 1);
+}
+
+static inline uint32_t GET_PAGE_NO(void* ptr) {
+    uint32_t val;
+    memcpy(&val, ptr, sizeof(uint32_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap32(val);
+}
+
+static inline uint32_t GET_PAGE_TYPE(void* ptr) {
+    uint32_t val;
+    memcpy(&val, (uint8_t*)ptr + 4, sizeof(uint32_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap32(val);
+}
+
+static inline uint16_t GET_ROW_COUNT(void* ptr) {
+    uint16_t val;
+    memcpy(&val, (uint8_t*)ptr + 8, sizeof(uint16_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap16(val);
+}
+
+static inline uint16_t GET_FREE_START(void* ptr) {
+    uint16_t val;
+    memcpy(&val, (uint8_t*)ptr + 10, sizeof(uint16_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap16(val);
+}
+
+static inline uint16_t GET_FREE_END(void* ptr) {
+    uint16_t val;
+    memcpy(&val, (uint8_t*)ptr + 12, sizeof(uint16_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap16(val);
+}
+
+
+
+// RowSlot 
+
+
+static inline uint64_t GET_ROW_SLOT_KEY(void* ptr, uint16_t i) {
+    uint64_t val;
+    memcpy(&val, (uint8_t*)ptr + 14 + i*14, sizeof(uint64_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap64(val);
+}
+
+static inline uint16_t GET_ROW_SLOT_OFFSET(void* ptr, uint16_t i) {
+    uint16_t val;
+    memcpy(&val, (uint8_t*)ptr + 14 + i*14 + 8, sizeof(uint16_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap16(val);
+}
+
+static inline uint32_t GET_ROW_SLOT_LENGTH(void* ptr, uint16_t i) {
+    uint32_t val;
+    memcpy(&val, (uint8_t*)ptr + 14 + i*14 + 10, sizeof(uint32_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap32(val);
+}
+
+
+// TrunkPage 
+
+
+static inline uint32_t GET_PREV_TRUNK_PAGE(void* ptr) {
+    uint32_t val;
+    memcpy(&val, (uint8_t*)ptr + 12, sizeof(uint32_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap32(val);
+}
+
+static inline uint32_t GET_ROW_COUNT_TRUNK(void* ptr) {
+    uint32_t val;
+    memcpy(&val, (uint8_t*)ptr + 8, sizeof(uint32_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap32(val);
+}
+
+
+// RootNode 
+
+
+static inline uint32_t GET_TRUNK_START(void* ptr) {
+    uint32_t val;
+    memcpy(&val, (uint8_t*)ptr + PAGE_SIZE - sizeof(uint32_t), sizeof(uint32_t));
+    return (ifLe == 1 || !reading) ? val : __builtin_bswap32(val);
+}
 
 
 
@@ -59,10 +141,6 @@ uint16_t ub(RowSlot arr[],uint16_t n,uint64_t id){
     return ans;
 }
 
-bool checkIfLittleEndian(){
-    uint32_t test = 1;
-    return *((uint8_t*)&test) == 1;
-}
 
 /*
     uint32_t pageNumber;    // 4
@@ -71,7 +149,7 @@ bool checkIfLittleEndian(){
     uint16_t freeStart;     // 2 (start of free space in payload)
     uint16_t freeEnd;       // 2 (end of free space in payload) 
 */
-void convertHeaderToLittleEndian(void* node,uint8_t* temp){
+void swapHeader(void* node,uint8_t* temp){
     uint32_t pageNumber=__builtin_bswap32(GET_PAGE_NO(node));
     uint32_t type=__builtin_bswap32(GET_PAGE_TYPE(node));
     uint16_t rowCount=__builtin_bswap16(GET_ROW_COUNT(node));
@@ -101,7 +179,7 @@ void convertHeaderToLittleEndian(void* node,uint8_t* temp){
     uint32_t trunkStart;
 */
 
-void covertRowSlotToLittleEndian(void* node,uint8_t* temp){
+void swapRowSlot(void* node,uint8_t* temp){
     for(uint16_t i=0;i<GET_ROW_COUNT(node);i++){
         uint64_t key=__builtin_bswap64(GET_ROW_SLOT_KEY(node,i));
         uint16_t offset=__builtin_bswap16(GET_ROW_SLOT_OFFSET(node,i));
@@ -112,16 +190,7 @@ void covertRowSlotToLittleEndian(void* node,uint8_t* temp){
     }
 }
 
-void reverseBytes(uint8_t* temp,uint32_t length){
-    for(uint32_t j = 0; j < length / 2; j++){
-        uint8_t t = temp[j];
-        temp[j] = temp[length - 1 - j];
-        temp[length - 1 - j] = t;
-    }
-}
-
-
-void convertPayloadToLittleEndian(void* node,uint8_t* temp,uint16_t size){
+void swapPayload(void* node,uint8_t* temp,uint16_t size){
     // interior node have fixed offset of length uint32_t
     if(GET_PAGE_TYPE(node)==0){
         const uint16_t payloadStart = FREE_END_DEFAULT;
@@ -139,28 +208,6 @@ void convertPayloadToLittleEndian(void* node,uint8_t* temp,uint16_t size){
             memcpy(temp + payloadStart + i, &v, 4);
         }
     }
-    // leaf
-    else{
-        const uint16_t payloadStart = FREE_END_DEFAULT;
-        uint8_t* src;
-        uint16_t rowCount;
-        if(GET_PAGE_NO(node)==1){
-            src = (uint8_t*)((RootPageNode*)node)->payload;
-            rowCount = ((RootPageNode*)node)->rowCount;
-        } else {
-            src = (uint8_t*)((pageNode*)node)->payload;
-            rowCount = ((pageNode*)node)->rowCount;
-        }
-        
-        memcpy(temp + payloadStart, src, size);
-        
-        for(uint16_t i = 0; i < rowCount; i++){
-            uint16_t offset = GET_ROW_SLOT_OFFSET(node,i);
-            uint32_t length = GET_ROW_SLOT_LENGTH(node,i);
-            // reverse in-place within temp buffer
-            reverseBytes(temp+offset,length);
-        }
-    }
 }
 
 
@@ -174,14 +221,14 @@ void convertPayloadToLittleEndian(void* node,uint8_t* temp,uint16_t size){
     uint32_t tPages[NO_OF_TPAGES]; 
 */
 
-void convertTrunkPayloadToLittleEndian(void* node,uint8_t* temp){
+void swapTrunkPayload(void* node,uint8_t* temp){
     for(uint32_t i=0;i<GET_ROW_COUNT_TRUNK(node);i++){
         uint32_t page_no=__builtin_bswap32(((TrunkPageNode*)node)->tPages[i]);
         memcpy(temp+16+i*4,&page_no,4);
     }
 }
 
-void convertTrunkPageToLittleEndian(void* node,uint8_t* temp){
+void swapTrunkPage(void* node,uint8_t* temp){
     uint32_t pageNumber=__builtin_bswap32(GET_PAGE_NO(node));
     uint32_t PageType=__builtin_bswap32(GET_PAGE_TYPE(node));
     uint32_t rowCount=__builtin_bswap32(GET_ROW_COUNT_TRUNK(node));
@@ -190,29 +237,29 @@ void convertTrunkPageToLittleEndian(void* node,uint8_t* temp){
     memcpy(temp+4,&PageType,4);
     memcpy(temp+8,&rowCount,4);
     memcpy(temp+12,&prevTrunkPage,4);
-    convertTrunkPayloadToLittleEndian(node,temp);
+    swapTrunkPayload(node,temp);
 }
 
 
 void swapEndian(void* node,uint8_t* temp){
     // interior,leaf
     if(GET_PAGE_TYPE(node)==0 || GET_PAGE_TYPE(node)==1){
-        convertHeaderToLittleEndian(node,temp);
-        covertRowSlotToLittleEndian(node,temp);
+        swapHeader(node,temp);
+        swapRowSlot(node,temp);
         // RootPage
         if(GET_PAGE_NO(node)==1){
-            convertPayloadToLittleEndian(node,temp,MAX_PAYLOAD_SIZE_ROOT);
+            swapPayload(node,temp,MAX_PAYLOAD_SIZE_ROOT);
             uint32_t trunkStart=__builtin_bswap32(GET_TRUNK_START(node));
             memcpy(temp+PAGE_SIZE-sizeof(uint32_t),&trunkStart,4);
         }
         // pageNode
         else{
-            convertPayloadToLittleEndian(node,temp,MAX_PAYLOAD_SIZE);
+            swapPayload(node,temp,MAX_PAYLOAD_SIZE);
         }
     }
     // trunkPage
     else{
-        convertTrunkPageToLittleEndian(node,temp);
+        swapTrunkPage(node,temp);
     }
 }
 
