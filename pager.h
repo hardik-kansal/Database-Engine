@@ -100,9 +100,17 @@ struct Pager{
         uint32_t page_no=GET_PAGE_NO(node);
         off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
         if(offset<0)exit(EXIT_FAILURE);
-        ssize_t bytes_written = write(this->file_descriptor,node,PAGE_SIZE);
-        if (bytes_written<0) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
-
+        if(checkIfLittleEndian()){
+            ssize_t bytes_written = write(this->file_descriptor,node,PAGE_SIZE);
+            if (bytes_written<0) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
+        }
+        else{
+            uint8_t* temp = new uint8_t[PAGE_SIZE];
+            convertToLittleEndian(node,temp);
+            ssize_t bytes_written = write(this->file_descriptor,temp,PAGE_SIZE);
+            if (bytes_written<0) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
+            delete[] temp;
+        }
     }
 
     void flushAll(){

@@ -74,8 +74,8 @@ static_assert(sizeof(Page)== PAGE_SIZE, "Page SIZE MISMATCH");
 struct TrunkPage {
     uint32_t pageNumber;    // 4
     PageType type;          // 4 since int declarartion
-    uint32_t prevTrunkPage; //4 
     uint32_t rowCount;      //4
+    uint32_t prevTrunkPage; //4 
     uint32_t tPages[NO_OF_TPAGES]; 
 }__attribute__((packed));
 static_assert(sizeof(TrunkPage)== PAGE_SIZE, "TrunkPage SIZE MISMATCH");
@@ -84,8 +84,8 @@ static_assert(sizeof(TrunkPage)== PAGE_SIZE, "TrunkPage SIZE MISMATCH");
 struct TrunkPageNode {
     uint32_t pageNumber;    // 4
     PageType type;          // 4 since int declarartion
-    uint32_t prevTrunkPage; //4 
     uint32_t rowCount;      //4
+    uint32_t prevTrunkPage; //4 
     uint32_t tPages[NO_OF_TPAGES]; 
     bool dirty;
 }__attribute__((packed));
