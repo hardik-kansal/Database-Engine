@@ -9,11 +9,7 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
 
 ---
 
-# Custom DBMS (B+ Tree, Pager, LRU)
 
-A lightweight key–value store in C++ using a single-file storage format, B+ tree indexing, LRU cache, and REPL.
-
----
 
 ## Contents
 
@@ -30,10 +26,12 @@ A lightweight key–value store in C++ using a single-file storage format, B+ tr
 11. [Repository Layout](#repository-layout)
 12. [Notes](#notes)
 
+
 ---
 
 
 ## Main Data Structures
+
 
 | Structure | Purpose | Fields | Notes |
 |-----------|---------|-------|------|
@@ -46,7 +44,9 @@ A lightweight key–value store in C++ using a single-file storage format, B+ tr
 | `Bplustrees` | B+ tree implementation | `insert()`, `deleteKey()`, `search()`, `printTree()` | Handles leaf/internal splits, merges, borrowing |
 
 
+
 ---
+
 
 
 ## Storage, Indexing, and On-Disk Format
@@ -65,7 +65,11 @@ A lightweight key–value store in C++ using a single-file storage format, B+ tr
   - On write: `Pager::writePage` converts host-endian to little-endian with `swapEndian(...)` when necessary.
   - On read: `Pager::getPage`/`getRootPage`/`getTrunkPage` convert from little-endian to host using `swapEndian(...)`.
 
+
+
 ---
+
+
 
 
 ## Basic Workflow 
@@ -91,7 +95,11 @@ A lightweight key–value store in C++ using a single-file storage format, B+ tr
 4. **Flush and exit**
   - `.exit` → `close_db` → `Pager::flushAll()` writes root and any dirty pages via `writePage`.
 
+
+
 ---
+
+
 
 
 ## Supported Operations (REPL)
@@ -111,7 +119,11 @@ A lightweight key–value store in C++ using a single-file storage format, B+ tr
 - **Meta**: `.exit`
   - Flushes dirty pages and exits.
 
+
+
 ---
+
+
 
 
 ## Time Complexity
@@ -120,7 +132,11 @@ A lightweight key–value store in C++ using a single-file storage format, B+ tr
 - **Split/Merge/Borrow**: Performed on a single path from root to leaf; amortized O(log N).
 - **Print tree** (`s*`): O(number of pages) for traversal.
 
+
+
 ---
+
+
 
 
 ## Memory Management and Caching
@@ -129,7 +145,12 @@ A lightweight key–value store in C++ using a single-file storage format, B+ tr
 - **Dirty Tracking**: `pageNode`/`RootPageNode`/`TrunkPageNode` include a `dirty` flag to avoid unnecessary writes. Root is always written on flush; other pages only if dirty.
 - **Flush**: On `.exit`, `Pager::flushAll()` writes pages to disk.
 
+
+
 ---
+
+
+
 
 
 ## Constants
@@ -138,7 +159,11 @@ A lightweight key–value store in C++ using a single-file storage format, B+ tr
 - `PAGE_HEADER_SIZE = 14` (`pageNumber`, `type` (leaf/interior), `rowCount`, `freeStart`, `freeEnd`)
 - `FREE_START_DEFAULT`, `FREE_END_DEFAULT` delimit payload free space
 
+
+
 ---
+
+
 
 
 ## Maximum Values and Limits
@@ -170,12 +195,20 @@ A lightweight key–value store in C++ using a single-file storage format, B+ tr
     - `MAX_DB_SIZE = MAX_PAGES * PAGE_SIZE = (2^32 - 1) * 4096 ≈ 17.59 TB`
     - In practice, the file size is limited by the OS and filesystem, but the code supports up to ~4.29 billion pages.
 
+
+
 ---
+
+
 
 **Note:**  
 Throughout the codebase, the minimal possible size for each variable is used to optimize memory and disk usage. For example, `uint16_t` is used for row counts and offsets because `MAX_ROWS` can be stored in it.
 
+
+
 ---
+
+
 
 
 ## Getting Started
@@ -214,7 +247,11 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 - **Reset**
   - To start fresh, remove the data file: `rm -f f1.db`
 
+
+
 ---
+
+
 
 
 ## Repository Layout
@@ -226,10 +263,18 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 - `structs.h`: All on-disk and in-memory page/record structs and constants
 - `utils.h`, `enums.h`, `headerfiles.h`: shared helpers, enums, and includes
 
+
+
 ---
+
+
 
 
 ## Notes
 
 - Insertion does not currently update existing keys.
 - Endianness behavior is implemented, but not yet thoroughly tested on big-endian hosts.
+- No concurrency support yet.
+- Only works on machine based on 2's complement arithmatics :)
+
+
