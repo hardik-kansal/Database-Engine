@@ -1,4 +1,4 @@
-## Custom DBMS (B+ Tree, Pager, LRU)
+# Custom DBMS (B+ Tree, Pager, LRU)
 
 A lightweight key–value store in C++ using a single-file storage format, a B+ tree index, LRU page cache, pager with dirty tracking, and a REPL for insert/delete/search operations.
 
@@ -9,45 +9,47 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
 
 ---
 
-### Main Data Structures
+# Custom DBMS (B+ Tree, Pager, LRU)
 
-- **RowSlot** (`structs.h`)
-  - Fields: `key` (uint64), `offset` (uint16), `length` (uint32)
-  - One slot points to one record in a page.
-
-- **pageNode / Page** (`structs.h`)
-  - Represents a non-root page (leaf or interior) in memory (`pageNode`) and on disk (`Page`).
-  - Header: `pageNumber`, `type` (leaf/interior), `rowCount`, `freeStart`, `freeEnd`
-  - `freeStart` is the top-of-free-space pointer (starts near the end of the page and moves downward as payload grows). `freeEnd` is the bottom-of-free-space pointer (just after the slot array). The usable payload region is the interval `(freeEnd, freeStart]`.
-  - Body: `slots[MAX_ROWS]` + `payload[MAX_PAYLOAD_SIZE]`
-  - `pageNode` adds a `dirty` byte at the end for writeback control.
-
-- **RootPageNode / RootPage** (`structs.h`)
-  - Root page variant. Same layout concept but payload size is slightly smaller to store `trunkStart` (start of the free-list chain). `RootPageNode` adds `dirty`.
-
-- **TrunkPageNode / TrunkPage** (`structs.h`)
-  - Free-list pages that store recycled page numbers.
-  - Fields: `rowCount`, `prevTrunkPage`, `tPages[NO_OF_TPAGES]`. `TrunkPageNode` adds `dirty`.
-
-- **Pager** (`pager.h`)
-  - Loads/saves pages to the file, handles little-endian on disk, and coordinates with the LRU cache.
-  - Methods:
-    - `getRootPage()`, `getPage(page_no)`, `getTrunkPage(page_no)`
-    - `writePage(node)`, `flushAll()`
-    - `getPageNoPayload(curr, index)` to read child-page numbers from payload in interior nodes.
-
-- **LRUCache** (`LRU.h`)
-  - Doubly-linked list + hash map keyed by `page_no`.
-  - Evicts least-recently-used nodes.
-
-- **Bplustrees** (`btree.h`)
-  - Full B+ tree implementation over the `Pager` API.
-  - Key APIs: `insert(key, payload)`, `deleteKey(key)`, `search(key)`, `printTree()`.
-  - Handles leaf/internal splits, merges, borrowing, and defragmentation.
+A lightweight key–value store in C++ using a single-file storage format, B+ tree indexing, LRU cache, and REPL.
 
 ---
 
-### Storage, Indexing, and On-Disk Format
+## Contents
+
+1. [Overview](#overview)
+2. [Main Data Structures](#main-data-structures)
+3. [Storage, Indexing, and On-Disk Format](#storage-indexing-and-on-disk-format)
+4. [Basic Workflow](#basic-workflow-with-function-references)
+5. [Supported Operations (REPL)](#supported-operations-repl)
+6. [Time Complexity](#time-complexity)
+7. [Memory Management and Caching](#memory-management-and-caching)
+8. [Constants](#constants)
+9. [Maximum Values and Limits](#maximum-values-and-limits)
+10. [Getting Started](#getting-started)
+11. [Repository Layout](#repository-layout)
+12. [Notes](#notes)
+
+---
+
+
+## Main Data Structures
+
+| Structure | Purpose | Fields | Notes |
+|-----------|---------|-------|------|
+| `RowSlot` | Points to one record in a page | `key` (uint64), `offset` (uint16), `length` (uint32) | One slot per record |
+| `pageNode / Page` | Non-root leaf/interior page | `pageNumber`, `type`, `rowCount`, `freeStart`, `freeEnd`, `slots[MAX_ROWS]`, `payload[MAX_PAYLOAD_SIZE]` | `pageNode` adds `dirty` flag |
+| `RootPageNode / RootPage` | Root page | Same as `pageNode` + `trunkStart` in payload | `dirty` flag added |
+| `TrunkPageNode / TrunkPage` | Free-list page | `rowCount`, `prevTrunkPage`, `tPages[NO_OF_TPAGES]` | `dirty` flag added |
+| `Pager` | Handles disk I/O and page retrieval | `getPage()`, `writePage()`, `flushAll()`, etc. | Manages endian conversion and LRU |
+| `LRUCache` | In-memory page cache | Hash map + doubly-linked list | Evicts least-recently-used pages |
+| `Bplustrees` | B+ tree implementation | `insert()`, `deleteKey()`, `search()`, `printTree()` | Handles leaf/internal splits, merges, borrowing |
+
+
+---
+
+
+## Storage, Indexing, and On-Disk Format
 
 - **Pages**: Fixed size 4096 bytes (`PAGE_SIZE`).
 - **Payload**: Variable-sized record bytes stored compactly between `freeStart` and `freeEnd`.
@@ -65,7 +67,8 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
 
 ---
 
-### Basic Workflow (with function references)
+
+## Basic Workflow 
 
 1. **Open database**
   - `create_db(filename, capacity)` → `pager_open(...)` opens/creates `f1.db`, initializes `Pager` and `LRUCache`.
@@ -90,7 +93,8 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
 
 ---
 
-### Supported Operations (REPL)
+
+## Supported Operations (REPL)
 
 - **Insert**: `i <key> <value>`
   - Inserts a new key/value into the B+ tree. If the key already exists, the insert is ignored (no update performed currently).
@@ -109,7 +113,8 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
 
 ---
 
-### Time Complexity
+
+## Time Complexity
 
 - **Search/Insert/Delete**: O(log_f N), where f is the fan-out (branching factor). With `MAX_ROWS = 4`, f is small for testing; in general, B+ trees scale with page capacity, so f is large and depth is small.
 - **Split/Merge/Borrow**: Performed on a single path from root to leaf; amortized O(log N).
@@ -117,7 +122,8 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
 
 ---
 
-### Memory Management and Caching
+
+## Memory Management and Caching
 
 - **LRU**: All loaded pages are cached in an LRU with configurable capacity (default `256` in `main.cpp`).
 - **Dirty Tracking**: `pageNode`/`RootPageNode`/`TrunkPageNode` include a `dirty` flag to avoid unnecessary writes. Root is always written on flush; other pages only if dirty.
@@ -125,7 +131,8 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
 
 ---
 
-### Constants
+
+## Constants
 
 - `PAGE_SIZE = 4096`
 - `PAGE_HEADER_SIZE = 14` (`pageNumber`, `type` (leaf/interior), `rowCount`, `freeStart`, `freeEnd`)
@@ -133,7 +140,8 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
 
 ---
 
-### Maximum Values and Limits
+
+## Maximum Values and Limits
 
 - **Key (`key`)**:  
   - Type: `uint64_t`, so the maximum value of id/key is `2^64 - 1 = 18,446,744,073,709,551,615`.
@@ -169,7 +177,8 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 
 ---
 
-### Getting Started
+
+## Getting Started
 
 - **Prerequisites**: g++ (C++17), Little-Endian host machine
 
@@ -207,7 +216,8 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 
 ---
 
-### Repository Layout
+
+## Repository Layout
 
 - `main.cpp`: REPL and wiring (`Table`, command parsing, execution)
 - `btree.h`: B+ tree implementation (insert, delete, search, split/merge, print)
@@ -218,7 +228,8 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 
 ---
 
-### Notes
+
+## Notes
 
 - Insertion does not currently update existing keys.
 - Endianness behavior is implemented, but not yet thoroughly tested on big-endian hosts.
