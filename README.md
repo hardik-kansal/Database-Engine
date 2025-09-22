@@ -121,7 +121,7 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 
 ## Time Complexity
 
-- **Search/Insert/Delete**: O(f*log<sub>f</sub> N), where f is the fan-out (branching factor). With `MAX_ROWS = 4`, f is small for testing; in general, B+ trees scale with page capacity, so f is large and depth is small.
+- **Search/Insert/Delete**: O(f x lnf x log<sub>f</sub> N), where f is the fan-out (branching factor). With `MAX_ROWS = 4`, f is small for testing; in general, B+ trees scale with page capacity, so f is large and depth is small.
 - **Print tree** (`s*`): O(number of pages) for traversal.
 
 
