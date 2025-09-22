@@ -546,6 +546,8 @@ cout<<"split leaf and index<splitIndex"<<endl;
             if (leaf->rowCount < M && path.size() > 1) {
                 // printNode(leaf);
                 handleLeafUnderflow(leaf, path);
+                // printNode(leaf);
+
             }
             pageNode* parent = path[path.size() - 2];
             uint16_t leafIndex = findChildIndex(parent, leaf);
@@ -681,7 +683,9 @@ cout<<"split leaf and index<splitIndex"<<endl;
         // Merge two leaf nodes
         void mergeLeafNodes(pageNode* leftLeaf, pageNode* rightLeaf, pageNode* parent, uint16_t parentIndex, vector<pageNode*>& path) {
             if (!leftLeaf || !rightLeaf || !parent) return; // Safety check
-            
+            cout<<leftLeaf->rowCount<<endl;
+            printNode(leftLeaf);
+
             // Move all keys from right leaf to left leaf
             for (uint16_t i = 0; i < rightLeaf->rowCount; i++) {
                 // cout<<i<<endl;
@@ -695,9 +699,9 @@ cout<<"split leaf and index<splitIndex"<<endl;
 
             // Remove the key from parent - use direct removal instead of recursive call
             uint32_t parentIndex_lcpageNumber=pager->getPageNoPayload(parent,parentIndex);
-            printNode(parent);
+            printNode(leftLeaf);
             removeRowFromInternal(parent, parentIndex);
-            printNode(parent);
+            // printNode(parent);
 
             parent->dirty = true;
 
@@ -736,7 +740,8 @@ cout<<"split leaf and index<splitIndex"<<endl;
                 internal->slots[i] = internal->slots[i + 1];
             }
             internal->rowCount--;
-            if(internal->rowCount!=0)internal->slots[index].offset=offset;
+            if(index==internal->rowCount){memcpy(((char*)internal)+internal->freeStart,((char*)internal)+offset,sizeof(uint32_t));}
+            else if(internal->rowCount!=0)internal->slots[index].offset=offset;
             else internal->freeStart=internal->slots[index].offset;
             // printNode(internal);
             // Defragment the internal node
