@@ -57,12 +57,6 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
       if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
       return PREPARE_SUCCESS;
     }
-    if (strncmp(input_buffer->buffer, "modify",6) == 0) {   // strncp reads only first 6 bytes
-      statement->type = STATEMENT_MODIFY;
-      int args_assigned=sscanf(input_buffer->buffer,"modify %lu %s",&(statement->row.key),statement->row.payload);
-      if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
-      return PREPARE_SUCCESS;
-    }
     if (strncmp(input_buffer->buffer, "d",1) == 0) {   // strncp reads only first 6 bytes
         statement->type = STATEMENT_DELETE;
         int args_assigned=sscanf(input_buffer->buffer,"d %lu",&(statement->row.key));
@@ -135,9 +129,6 @@ executeResult execute_select_id(Statement* statement, Table* table) {
     return EXECUTE_SUCCESS;
 }
 
-executeResult execute_modify(Statement* statement, Table* table) {
-    return EXECUTE_SUCCESS;
-}
 executeResult execute_delete(Statement* statement, Table* table) {
     bool deleted = table->bplusTrees->deleteKey(statement->row.key);
     if (deleted) {
@@ -156,8 +147,6 @@ executeResult execute_statement(Statement* statement, Table* table) {
             return execute_select(statement, table);
         case (STATEMENT_SELECT_ID):
             return execute_select_id(statement, table);
-        case (STATEMENT_MODIFY):
-            return execute_modify(statement, table);
         case (STATEMENT_DELETE):
             return execute_delete(statement, table);
         

@@ -139,7 +139,6 @@ class Bplustrees{
             uint16_t idx = lb(curr->slots, curr->rowCount, key);
             if (idx < curr->rowCount && curr->slots[idx].key == key) {
                 // Key exists, update payload
-                // updatePayload(curr, idx, payload);
                 return;
             }
             // Insert new row
@@ -296,18 +295,9 @@ class Bplustrees{
                 newPayloadOffset -= length;
             }
             
-            // Update page metadata
             newLeaf->rowCount = rowsToMove;
             newLeaf->freeStart = newPayloadOffset;
-            oldLeaf->rowCount = splitIndex;
-
-            //  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            //  !!!!!!!!!!!!!!     CHANGE TO COMPACT   !!!!!!!!!!!!!
-            //  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-            // uint32_t oldBaseline = (oldLeaf->pageNumber == 1) ? FREE_START_DEFAULT_ROOT : FREE_START_DEFAULT;
-            // oldLeaf->freeStart = oldLeaf->freeStart + (oldBaseline - newPayloadOffset);
-            
+            oldLeaf->rowCount = splitIndex;            
             oldLeaf->type = PAGE_TYPE_LEAF;
             oldLeaf->dirty = true;
             newLeaf->dirty = true;
@@ -370,7 +360,7 @@ class Bplustrees{
             internal->slots[index].length = sizeof(uint32_t);
 
             // inserting at righmost, rightmost pg becomes left child of new key
-            // pg to be inserted becomes righmost pg
+            // page to be inserted becomes righmost page
             if(index==internal->rowCount){
                 internal->slots[index].offset = internal->freeStart; 
                 memcpy(((char*)internal)+ internal->freeStart-sizeof(uint32_t), &pageNumber, sizeof(uint32_t));
@@ -383,7 +373,6 @@ class Bplustrees{
 
             }
             
-            // Update metadata
             internal->rowCount++;
             internal->freeStart -= sizeof(uint32_t);
         }
@@ -399,6 +388,7 @@ class Bplustrees{
             return newInternal;
         }
         void defragment(pageNode* oldInternal,uint16_t  ind,uint16_t offset=FREE_START_DEFAULT){
+            
             // DEFRAGMENTATION 
             uint16_t len=(oldInternal->pageNumber==1)? (MAX_PAYLOAD_SIZE_ROOT) : MAX_PAYLOAD_SIZE;
             char* buff=new char[len];
@@ -441,7 +431,6 @@ class Bplustrees{
                 internal->rowCount = splitIndex;  
                 defragment(internal,rightOffset);
                 memcpy(((char*)newInternal)+newInternal->slots[0].offset,&pageNumber,sizeof(uint32_t));
-                // insertInternalRowAt(newInternal, index - splitIndex, key, pageNumber);
                 newKey=key;
             }
             else{
@@ -483,7 +472,6 @@ class Bplustrees{
             uint32_t length = sizeof(uint32_t);
             memcpy(((char*)newInternal) + payloadOffset-length, ((char*)oldInternal) + oldInternal->freeStart, length);
 
-            // Update metadata
             if(rowsToMove>0)newInternal->rowCount = rowsToMove;
             else newInternal->rowCount = 0;
             newInternal->freeStart = payloadOffset-length;
@@ -540,7 +528,6 @@ class Bplustrees{
             if(leafIndex>0 && index==0 && leafIndex<parent->rowCount)parent->slots[leafIndex-1].key=leaf->slots[0].key;
             }
             // chanage in root if lefmost of root key subtree
-            // changeRootifLeftmost(leaf,index,key);
         }
         void changeRootifLeftmost(pageNode* leaf,uint16_t index,uint64_t key){
             pageNode* curr = (pageNode*)root;
