@@ -67,17 +67,17 @@ d 31
 d 32 
 d 33 
 d 34 
-.exit
-EOF
-
-
-./dbms <<EOF
 d 35 
 d 36 
 d 37 
 d 38 
 d 39 
 d 40 
+.exit
+EOF
+
+
+./dbms <<EOF
 d 41 
 d 16 
 d 17 

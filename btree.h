@@ -59,7 +59,7 @@ class Bplustrees{
                 else{
                     if(i>0){
                     cout<<"k: "<<node->slots[i-1].key<<" ";
-                    // cout<<"of: "<<node->slots[i-1].offset<<" ";
+                    cout<<"of: "<<node->slots[i-1].offset<<" ";
                     }
                     cout<<"p: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
@@ -76,7 +76,7 @@ class Bplustrees{
                 else{
                     if(i>0){
                         cout<<"k: "<<node->slots[i-1].key<<" ";
-                        // cout<<"of: "<<node->slots[i-1].offset<<" ";
+                        cout<<"of: "<<node->slots[i-1].offset<<" ";
                     }
                     cout<<"p: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
@@ -369,6 +369,8 @@ cout<<"split leaf and index<splitIndex"<<endl;
         // Insert a row into an internal node
         void insertInternalRowAt(pageNode* internal, uint16_t index, uint64_t key, uint32_t pageNumber) {
             // Shift slots
+            // cout<<*((uint32_t*)(((char*)internal)+internal->freeStart))<<endl;
+
             for (uint16_t i = internal->rowCount; i > index; i--) {
                 internal->slots[i] = internal->slots[i - 1];
             }
@@ -380,10 +382,13 @@ cout<<"split leaf and index<splitIndex"<<endl;
             // inserting at righmost, rightmost pg becomes left child of new key
             // pg to be inserted becomes righmost pg
             if(index==internal->rowCount){
+                cout<<"inserting at righmost"<<endl;
+                // cout<<*((uint32_t*)(((char*)internal)+internal->freeStart))<<endl;
                 internal->slots[index].offset = internal->freeStart; 
                 memcpy(((char*)internal)+ internal->freeStart-sizeof(uint32_t), &pageNumber, sizeof(uint32_t));
             }
             else{
+                cout<<"inserting at other than righmost"<<endl;
                 internal->slots[index].offset = internal->slots[index+1].offset;
                 memcpy(((char*)internal)+internal->freeStart-sizeof(uint32_t),((char*)internal)+internal->freeStart,sizeof(uint32_t));
                 internal->slots[index+1].offset=internal->freeStart; 
@@ -683,8 +688,8 @@ cout<<"split leaf and index<splitIndex"<<endl;
         // Merge two leaf nodes
         void mergeLeafNodes(pageNode* leftLeaf, pageNode* rightLeaf, pageNode* parent, uint16_t parentIndex, vector<pageNode*>& path) {
             if (!leftLeaf || !rightLeaf || !parent) return; // Safety check
-            cout<<leftLeaf->rowCount<<endl;
-            printNode(leftLeaf);
+            // cout<<leftLeaf->rowCount<<endl;
+            // printNode(leftLeaf);
 
             // Move all keys from right leaf to left leaf
             for (uint16_t i = 0; i < rightLeaf->rowCount; i++) {
@@ -699,7 +704,7 @@ cout<<"split leaf and index<splitIndex"<<endl;
 
             // Remove the key from parent - use direct removal instead of recursive call
             uint32_t parentIndex_lcpageNumber=pager->getPageNoPayload(parent,parentIndex);
-            printNode(leftLeaf);
+            // printNode(leftLeaf);
             removeRowFromInternal(parent, parentIndex);
             // printNode(parent);
 
@@ -790,6 +795,8 @@ cout<<"split leaf and index<splitIndex"<<endl;
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex - 1));
                 if (leftSibling) {
                     cout<<"merging with left sibling internal"<<endl;
+                    cout<<"1pager: "<<*(uint32_t*)(((char*)leftSibling) + PAGE_SIZE-(leftSibling->rowCount+1)*sizeof(uint32_t))<<endl;
+                    cout<<"1freeStart: "<<*((uint32_t*)(((char*)leftSibling)+leftSibling->freeStart))<<endl;
                     mergeInternalNodes(leftSibling, internal, parent, internalIndex - 1, path);
                 }
             } else if (internalIndex < parent->rowCount) {
@@ -830,6 +837,7 @@ cout<<"split leaf and index<splitIndex"<<endl;
         void borrowFromLeftInternal(pageNode* internal, pageNode* leftSibling, pageNode* parent, uint16_t parentIndex) {
             // Get the rightmost child from left sibling
             uint32_t childPageNo = pager->getPageNoPayload(leftSibling, leftSibling->rowCount);
+            cout<<"childPageNo: "<<childPageNo<<endl;
             // Insert the parent key at the beginning of internal
             insertInternalAtStarting(internal,parent->slots[parentIndex].key,childPageNo);
 
@@ -839,6 +847,7 @@ cout<<"split leaf and index<splitIndex"<<endl;
             
             // Remove the key from left sibling
             leftSibling->rowCount--;
+            leftSibling->freeStart=leftSibling->slots[leftSibling->rowCount].offset;
             
             parent->dirty = true;
             internal->dirty=true;
@@ -871,9 +880,14 @@ cout<<"split leaf and index<splitIndex"<<endl;
             // printNode(leftInternal);
             // Insert parent key ->parentkey is offset is associated with righmost child of leftInternal.
             // page no new added will be leftmost of rightInternal.
+            printNode(leftInternal);
+            cout<<"pager: "<<*(uint32_t*)(((char*)leftInternal) + PAGE_SIZE-(leftInternal->rowCount+1)*sizeof(uint32_t))<<endl;
+            cout<<"freeStart: "<<*((uint32_t*)(((char*)leftInternal)+leftInternal->freeStart))<<endl;
+            cout<<"rightInternal: "<<pager->getPageNoPayload(rightInternal, 0)<<endl;
             insertInternalRowAt(leftInternal, leftInternal->rowCount, parent->slots[parentIndex].key, 
                                pager->getPageNoPayload(rightInternal, 0));
-            
+            printNode(leftInternal);
+
             // Move all keys from right internal to left internal
             for (uint16_t i = 0; i < rightInternal->rowCount; i++) {
                 insertInternalRowAt(leftInternal, leftInternal->rowCount, rightInternal->slots[i].key,
