@@ -59,7 +59,7 @@ class Bplustrees{
                 else{
                     if(i>0){
                     cout<<"k: "<<node->slots[i-1].key<<" ";
-                    cout<<"of: "<<node->slots[i-1].offset<<" ";
+                    // cout<<"of: "<<node->slots[i-1].offset<<" ";
                     }
                     cout<<"p: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
@@ -76,7 +76,7 @@ class Bplustrees{
                 else{
                     if(i>0){
                         cout<<"k: "<<node->slots[i-1].key<<" ";
-                        cout<<"of: "<<node->slots[i-1].offset<<" ";
+                        // cout<<"of: "<<node->slots[i-1].offset<<" ";
                     }
                     cout<<"p: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
@@ -143,7 +143,6 @@ class Bplustrees{
                 return;
             }
             // Insert new row
-            // cout<<"idx: "<<idx<<endl;
             insertIntoLeaf(curr,idx,key, payload, path);
         }
         
@@ -156,7 +155,6 @@ class Bplustrees{
                 leaf->dirty = true;
             } else {
                 // Need to split the page
-                // cout<<"here"<<endl;
                 splitLeafAndInsert(leaf, index, key, payload, payloadLength, path);
             }
         }
@@ -180,9 +178,8 @@ class Bplustrees{
             page->slots[index].offset = page->freeStart-payloadLength;
             page->slots[index].length = payloadLength;
             // Copy payload
-            // cout<<"here1"<<endl;
             memcpy(((char*)page) + page->freeStart-payloadLength, payload, payloadLength);
-            // cout<<"here2"<<endl;
+            
 
             // Update page metadata
             page->rowCount++;
@@ -210,13 +207,12 @@ class Bplustrees{
             pageNode* newLeaf = createNewLeafPage();
             // Calculate split point based on payload capacity
             uint16_t splitIndex = findSplitIndex(leaf);
-            // cout<<"splitIndex: "<<splitIndex<<endl;
+            
             // Move half the rows to the new leaf
             
             // Insert the new row in the appropriate page
             if (index < splitIndex) {
 // this means leaf have new element, so mving rows will be differrnt.
-cout<<"split leaf and index<splitIndex"<<endl;
             moveRowsToNewLeaf(leaf, newLeaf, splitIndex-1);
             insertRowAt(leaf, index, key, payload, payloadLength);
 
@@ -224,7 +220,6 @@ cout<<"split leaf and index<splitIndex"<<endl;
 
                 }
              else {
-                cout<<"split leaf and index>=splitIndex"<<endl;
                 moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
                 insertRowAt(newLeaf, index-splitIndex, key, payload, payloadLength);
 
@@ -234,12 +229,10 @@ cout<<"split leaf and index<splitIndex"<<endl;
             if (path.size() == 1) {
                 leaf->pageNumber=new_page_no();
                 pager->lruCache->put(leaf->pageNumber, leaf);
-                cout<<"create new root"<<endl;
                 createNewRoot(leaf, newLeaf,newLeaf->slots[0].key);
             } else {
                 // Insert into parent
                 path.pop_back();
-                cout<<"insert into internal"<<endl;
                 insertIntoInternal(path[path.size() - 1], leaf, newLeaf, path,newLeaf->slots[0].key);
             }
         }
@@ -346,22 +339,19 @@ cout<<"split leaf and index<splitIndex"<<endl;
         
         // Insert into internal node
         void insertIntoInternal(pageNode* internal, pageNode* leftChild, pageNode* rightChild, vector<pageNode*>& path,uint64_t key) {
-            // cout<<"key: "<<key<<endl;
             uint32_t rightPageNumber = rightChild->pageNumber;
             // Find insertion point
             uint16_t index = ub(internal->slots, internal->rowCount, key);
-            // cout<<"index: "<<index<<endl;
+            
             
             if (canInsertRow(internal, sizeof(uint32_t))) {
                 // Insert into internal node
-                // cout<<"here2"<<endl;
-                cout<<"can insert into internal"<<endl;
+                
                 insertInternalRowAt(internal, index, key, rightPageNumber);
                 internal->dirty = true;
             } else {
                 // Split internal node
-                // cout<<"here1"<<endl;
-                cout<<"split internal"<<endl;
+                
                 splitInternalAndInsert(internal, index, key, rightPageNumber, path);
             }
         }
@@ -369,7 +359,7 @@ cout<<"split leaf and index<splitIndex"<<endl;
         // Insert a row into an internal node
         void insertInternalRowAt(pageNode* internal, uint16_t index, uint64_t key, uint32_t pageNumber) {
             // Shift slots
-            // cout<<*((uint32_t*)(((char*)internal)+internal->freeStart))<<endl;
+            
 
             for (uint16_t i = internal->rowCount; i > index; i--) {
                 internal->slots[i] = internal->slots[i - 1];
@@ -382,13 +372,10 @@ cout<<"split leaf and index<splitIndex"<<endl;
             // inserting at righmost, rightmost pg becomes left child of new key
             // pg to be inserted becomes righmost pg
             if(index==internal->rowCount){
-                cout<<"inserting at righmost"<<endl;
-                // cout<<*((uint32_t*)(((char*)internal)+internal->freeStart))<<endl;
                 internal->slots[index].offset = internal->freeStart; 
                 memcpy(((char*)internal)+ internal->freeStart-sizeof(uint32_t), &pageNumber, sizeof(uint32_t));
             }
             else{
-                cout<<"inserting at other than righmost"<<endl;
                 internal->slots[index].offset = internal->slots[index+1].offset;
                 memcpy(((char*)internal)+internal->freeStart-sizeof(uint32_t),((char*)internal)+internal->freeStart,sizeof(uint32_t));
                 internal->slots[index+1].offset=internal->freeStart; 
@@ -425,7 +412,7 @@ cout<<"split leaf and index<splitIndex"<<endl;
             }
             // rightmost node
             memcpy(((char*)oldInternal) + offset-sizeof(uint32_t),buff+ind-FREE_END_DEFAULT,sizeof(uint32_t));
-            // cout<<*((uint32_t*)(buff+ind-FREE_END_DEFAULT))<<endl;
+            
             oldInternal->freeStart=offset-sizeof(uint32_t);
             delete[] buff;
         }
@@ -438,12 +425,10 @@ cout<<"split leaf and index<splitIndex"<<endl;
             // Split the internal node
             uint16_t splitIndex = findSplitIndex(internal);
             // Move half the entries to new internal node
-            // cout<<"splitIndex Internal: "<<splitIndex<<endl;
-            // cout<<"index: "<<index<<endl;
+            
             uint64_t newKey=0;
             // Insert the new entry
             if (index < splitIndex) {
-                cout<<"split internal and index<splitIndex"<<endl;
                  newKey=internal->slots[splitIndex-1].key;
                  uint16_t rightOffset=internal->slots[splitIndex-1].offset;
                  moveInternalRowsToNew(internal, newInternal, splitIndex); 
@@ -451,7 +436,6 @@ cout<<"split leaf and index<splitIndex"<<endl;
                  defragment(internal,rightOffset);
                  insertInternalRowAt(internal, index, key, pageNumber);
             } else if(index==splitIndex){
-                cout<<"split internal and index==splitIndex"<<endl;
                 uint16_t rightOffset=internal->slots[splitIndex].offset;
                 moveInternalRowsToNew(internal, newInternal, splitIndex);   
                 internal->rowCount = splitIndex;  
@@ -461,9 +445,8 @@ cout<<"split leaf and index<splitIndex"<<endl;
                 newKey=key;
             }
             else{
-                cout<<"split internal and index>splitIndex"<<endl;
                 newKey= internal->slots[splitIndex].key;
-                // cout<<"newKey: "<<newKey<<endl;
+                
                 uint16_t rightOffset=internal->slots[splitIndex].offset;
                 moveInternalRowsToNew(internal, newInternal, splitIndex+1);   
                 internal->rowCount = splitIndex;  
@@ -475,11 +458,9 @@ cout<<"split leaf and index<splitIndex"<<endl;
             if (path.size() == 1) {
                 internal->pageNumber=new_page_no();
                 pager->lruCache->put(internal->pageNumber, internal);
-                cout<<"create new root after split internal"<<endl;
                 createNewRoot(internal,newInternal,newKey);
             } else {
                 path.pop_back();
-                cout<<"insert into internal after split internal"<<endl;
                 insertIntoInternal(path[path.size() - 1], internal, newInternal, path,newKey);
             }
         }
@@ -495,7 +476,6 @@ cout<<"split leaf and index<splitIndex"<<endl;
             for (uint16_t i = 0; i < rowsToMove; i++) {
                 uint16_t oldOffset = oldInternal->slots[i+splitIndex].offset;
                 uint32_t length = sizeof(uint32_t);
-                // cout<<*((uint32_t*)(((char*)oldInternal) + oldOffset))<<endl;
                 memcpy(((char*)newInternal) + payloadOffset-length, ((char*)oldInternal) + oldOffset, length);
                 newInternal->slots[i].offset = payloadOffset-length;
                 payloadOffset -= length;
@@ -568,7 +548,7 @@ cout<<"split leaf and index<splitIndex"<<endl;
             if(root->type==PAGE_TYPE_LEAF) return;
             curr = pager->getPage(pager->getPageNoPayload(curr, idx));
             // Navigate to the appropriate leafmost page of correspoding root key
-            // cout<<"y"<<endl;
+            
             while (curr->type != PAGE_TYPE_LEAF) {
                 curr = pager->getPage(pager->getPageNoPayload(curr, 0));
             }            
@@ -601,7 +581,6 @@ cout<<"split leaf and index<splitIndex"<<endl;
             if (leafIndex > 0) {
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex - 1));
                 if (leftSibling && leftSibling->rowCount > M) {
-                    cout<<"borrowing from left sibling"<<endl;
                     borrowFromLeftLeaf(leaf, leftSibling, parent, leafIndex - 1);
                     return;
                 }
@@ -611,7 +590,6 @@ cout<<"split leaf and index<splitIndex"<<endl;
             if (leafIndex < parent->rowCount) {
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex + 1));
                 if (rightSibling && rightSibling->rowCount > M) {
-                    cout<<"borrowing from right sibling"<<endl;
                     borrowFromRightLeaf(leaf, rightSibling, parent, leafIndex);
                     return;
                 }
@@ -623,7 +601,6 @@ cout<<"split leaf and index<splitIndex"<<endl;
                 // Merge with left sibling
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex - 1));
                 if (leftSibling) {
-                    cout<<"merging with left sibling"<<endl;
                     mergeLeafNodes(leftSibling, leaf, parent, leafIndex - 1, path);
                 }
                 // IF LeafIndex==0rowCount means righmost child
@@ -631,7 +608,6 @@ cout<<"split leaf and index<splitIndex"<<endl;
                 // Merge with right sibling
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex + 1));
                 if (rightSibling) {
-                    cout<<"merging with right sibling"<<endl;
                     mergeLeafNodes(leaf, rightSibling, parent, leafIndex, path);
                 }
             }
@@ -690,25 +666,23 @@ cout<<"split leaf and index<splitIndex"<<endl;
         // Merge two leaf nodes
         void mergeLeafNodes(pageNode* leftLeaf, pageNode* rightLeaf, pageNode* parent, uint16_t parentIndex, vector<pageNode*>& path) {
             if (!leftLeaf || !rightLeaf || !parent) return; // Safety check
-            // cout<<leftLeaf->rowCount<<endl;
-            // printNode(leftLeaf);
+            
 
             // Move all keys from right leaf to left leaf
             for (uint16_t i = 0; i < rightLeaf->rowCount; i++) {
-                // cout<<i<<endl;
+                
                 insertRowAt(leftLeaf, leftLeaf->rowCount, rightLeaf->slots[i].key,
                            ((char*)rightLeaf) + rightLeaf->slots[i].offset,
                            rightLeaf->slots[i].length);
             }
-            // cout<<"1"<<endl;
-            // printNode(leftLeaf);
-            // cout<<"2"<<endl;
+            
+            
 
             // Remove the key from parent - use direct removal instead of recursive call
             uint32_t parentIndex_lcpageNumber=pager->getPageNoPayload(parent,parentIndex);
-            // printNode(leftLeaf);
+            
             removeRowFromInternal(parent, parentIndex);
-            // printNode(parent);
+            
 
             parent->dirty = true;
 
@@ -719,21 +693,19 @@ cout<<"split leaf and index<splitIndex"<<endl;
                 root->pageNumber=1;
                 pager->lruCache->put(1,root);
                 freePage(page_no);
-                cout<<"root changed to left internal"<<endl;
+                
 
                 return;
             }
             // Check if parent is underflowed and handle it
             if (parent->rowCount < M && path.size() > 2) {
                 path.pop_back();
-                cout<<"handleInternalUnderflow"<<endl;
                 handleInternalUnderflow(parent, path,parentIndex_lcpageNumber);
             }
             
             // Free the right leaf page
-            // cout<<"4"<<endl;
             freePage(rightLeaf->pageNumber); //right leaf changed to trunkPage
-            // cout<<"5"<<endl;
+            
 
             leftLeaf->dirty = true;
         }
@@ -750,7 +722,7 @@ cout<<"split leaf and index<splitIndex"<<endl;
             if(index==internal->rowCount){memcpy(((char*)internal)+internal->freeStart,((char*)internal)+offset,sizeof(uint32_t));}
             else if(internal->rowCount!=0)internal->slots[index].offset=offset;
             else internal->freeStart=internal->slots[index].offset;
-            // printNode(internal);
+            
             // Defragment the internal node
             // internal node to defrag, righmost pagenumber offset in payload in internal
             if(internal->pageNumber==1)defragment(internal,internal->freeStart,FREE_START_DEFAULT_ROOT);
@@ -774,7 +746,6 @@ cout<<"split leaf and index<splitIndex"<<endl;
             if (internalIndex > 0) {
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex - 1));
                 if (leftSibling && leftSibling->rowCount > M) {
-                    cout<<"borrowing from left sibling internal"<<endl;
                     borrowFromLeftInternal(internal, leftSibling, parent, internalIndex - 1);
                     return;
                 }
@@ -785,7 +756,6 @@ cout<<"split leaf and index<splitIndex"<<endl;
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex + 1));
 
                 if (rightSibling && rightSibling->rowCount > M) {
-                    cout<<"borrowing from right sibling internal"<<endl;
                     borrowFromRightInternal(internal, rightSibling, parent, internalIndex,parentIndex_lcpageNumber);
                     return;
                 }
@@ -796,16 +766,14 @@ cout<<"split leaf and index<splitIndex"<<endl;
                 // Merge with left sibling
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex - 1));
                 if (leftSibling) {
-                    cout<<"merging with left sibling internal"<<endl;
-                    cout<<"1pager: "<<*(uint32_t*)(((char*)leftSibling) + PAGE_SIZE-(leftSibling->rowCount+1)*sizeof(uint32_t))<<endl;
-                    cout<<"1freeStart: "<<*((uint32_t*)(((char*)leftSibling)+leftSibling->freeStart))<<endl;
+                    
                     mergeInternalNodes(leftSibling, internal, parent, internalIndex - 1, path);
                 }
             } else if (internalIndex < parent->rowCount) {
                 // Merge with right sibling
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex + 1));
                 if (rightSibling) {
-                    cout<<"merging with right sibling internal"<<endl;
+                    
                     mergeInternalNodes(internal, rightSibling, parent, internalIndex, path);
                 }
             }
@@ -839,7 +807,7 @@ cout<<"split leaf and index<splitIndex"<<endl;
         void borrowFromLeftInternal(pageNode* internal, pageNode* leftSibling, pageNode* parent, uint16_t parentIndex) {
             // Get the rightmost child from left sibling
             uint32_t childPageNo = pager->getPageNoPayload(leftSibling, leftSibling->rowCount);
-            cout<<"childPageNo: "<<childPageNo<<endl;
+            
             // Insert the parent key at the beginning of internal
             insertInternalAtStarting(internal,parent->slots[parentIndex].key,childPageNo);
 
@@ -860,8 +828,7 @@ cout<<"split leaf and index<splitIndex"<<endl;
         void borrowFromRightInternal(pageNode* internal, pageNode* rightSibling, pageNode* parent, uint16_t parentIndex,uint32_t parentIndex_lcpageNumber) {
             // Get the leftmost child from right sibling
             uint32_t childPageNo = pager->getPageNoPayload(rightSibling, 0);
-            // cout<<childPageNo<<endl;
-            // printNode(internal);
+            
             // Insert the parent key at the end of internal
             insertInternalRowAt(internal, internal->rowCount, parent->slots[parentIndex].key, childPageNo);
             memcpy((char*)internal+internal->slots[0].offset,&parentIndex_lcpageNumber,sizeof(uint32_t));
@@ -879,16 +846,12 @@ cout<<"split leaf and index<splitIndex"<<endl;
         // Merge two internal nodes
         void mergeInternalNodes(pageNode* leftInternal, pageNode* rightInternal, pageNode* parent, uint16_t parentIndex, vector<pageNode*>& path) {
             if (!leftInternal || !rightInternal || !parent) return; // Safety check
-            // printNode(leftInternal);
             // Insert parent key ->parentkey is offset is associated with righmost child of leftInternal.
             // page no new added will be leftmost of rightInternal.
-            printNode(leftInternal);
-            cout<<"pager: "<<*(uint32_t*)(((char*)leftInternal) + PAGE_SIZE-(leftInternal->rowCount+1)*sizeof(uint32_t))<<endl;
-            cout<<"freeStart: "<<*((uint32_t*)(((char*)leftInternal)+leftInternal->freeStart))<<endl;
-            cout<<"rightInternal: "<<pager->getPageNoPayload(rightInternal, 0)<<endl;
+            
             insertInternalRowAt(leftInternal, leftInternal->rowCount, parent->slots[parentIndex].key, 
                                pager->getPageNoPayload(rightInternal, 0));
-            printNode(leftInternal);
+            
 
             // Move all keys from right internal to left internal
             for (uint16_t i = 0; i < rightInternal->rowCount; i++) {
@@ -905,9 +868,7 @@ cout<<"split leaf and index<splitIndex"<<endl;
             // since root payload starts from PAGE_SIZE -sizeof(uint32_t) ->trunkStart
             if (parent->pageNumber==1 && parent->rowCount == 0) {
                 uint32_t page_no=leftInternal->pageNumber;
-                // printNode(leftInternal);
                 root->freeStart=leftInternal->freeStart-sizeof(uint32_t);
-                // cout<<root->freeStart<<endl;
                 memcpy(root->slots,leftInternal->slots,sizeof(RowSlot)*(leftInternal->rowCount));
                 memcpy(((char*)root)+root->freeStart,((char*)leftInternal)+leftInternal->freeStart,PAGE_SIZE-leftInternal->freeStart);
                 root->pageNumber=1;
@@ -918,14 +879,12 @@ cout<<"split leaf and index<splitIndex"<<endl;
                     root->slots[i].offset-=sizeof(uint32_t);
                 }
                 freePage(page_no);
-                // printRootNode(root);
-                // cout<<*((uint32_t*)root->payload+root->freeStart)<<endl;
+                
                 return;
             }
             // Check if parent is underflowed and handle it
             else if (parent->rowCount < M && path.size() > 2) {
                 path.pop_back();
-                cout<<"handleInternalUnderflowAgain"<<endl;
                 handleInternalUnderflow(parent, path,parentIndex_lcpageNumber);
             } 
             

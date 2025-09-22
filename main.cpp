@@ -141,7 +141,7 @@ executeResult execute_modify(Statement* statement, Table* table) {
 executeResult execute_delete(Statement* statement, Table* table) {
     bool deleted = table->bplusTrees->deleteKey(statement->row.key);
     if (deleted) {
-        cout << "Key " << statement->row.key<< "  success" << endl;
+        cout << "Key " << statement->row.key<< " success" << endl;
     } else {
         cout << "Key " << statement->row.key << " not found" << endl;
     }
