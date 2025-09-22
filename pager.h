@@ -6,6 +6,7 @@
 
 
 
+
 // total size -> 24 bytes
 struct Pager{
 
@@ -119,7 +120,7 @@ struct Pager{
         }
     }
     void writePage(void* node){
-        uint32_t page_no=GET_PAGE_NO(node);
+        uint32_t page_no=GET_PAGE_NO(node,true);
         off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
         if(offset<0)exit(EXIT_FAILURE);
         // always write to disk in littleEndainess
@@ -141,7 +142,7 @@ struct Pager{
         uint32_t count=this->lruCache->count;
         Node* tem=this->lruCache->head->next;
         for(uint32_t i=0;i<count;i++){
-            if (GET_PAGE_NO(tem->value)==1){this->writePage(tem->value);}
+            if (GET_PAGE_NO(tem->value,true)==1){this->writePage(tem->value);}
             else if(GET_DIRTY(tem->value,PAGE_SIZE+1)){this->writePage(tem->value);}
             tem=tem->next;
         }
@@ -160,11 +161,11 @@ struct Pager{
     uint32_t getPageNoPayload(void* curr,uint16_t index){
         uint32_t value;
         if(index<((pageNode*)curr)->rowCount){
-        if(GET_PAGE_NO(curr)==1)memcpy(&value, ((char*)curr) + ((RootPageNode*)curr)->slots[index].offset, sizeof(uint32_t));  
+        if(GET_PAGE_NO(curr,true)==1)memcpy(&value, ((char*)curr) + ((RootPageNode*)curr)->slots[index].offset, sizeof(uint32_t));  
         else {memcpy(&value, ((char*)curr) + ((pageNode*)curr)->slots[index].offset, sizeof(uint32_t));}  
         }
         else{
-            if(GET_PAGE_NO(curr)==1)memcpy(&value, ((char*)curr) + ((RootPageNode*)curr)->freeStart, sizeof(uint32_t));  
+            if(GET_PAGE_NO(curr,true)==1)memcpy(&value, ((char*)curr) + ((RootPageNode*)curr)->freeStart, sizeof(uint32_t));  
             else memcpy(&value, ((char*)curr) + ((pageNode*)curr)->freeStart, sizeof(uint32_t)); 
         }
         return value;
