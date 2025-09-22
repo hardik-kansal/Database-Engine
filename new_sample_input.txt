@@ -73,18 +73,13 @@ d 37
 d 38 
 d 39 
 d 40 
-.exit
-EOF
-
-
-./dbms <<EOF
 d 41 
 d 16 
 d 17 
 d 20 
 d 18 
 d 21 
-d 22 
+d 22
 d 23 
 d 24 
 d 25 
@@ -94,4 +89,7 @@ d 28
 d 29 
 .exit
 EOF
+
+
+
 
