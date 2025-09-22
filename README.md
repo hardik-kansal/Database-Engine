@@ -1,13 +1,6 @@
 # Custom DBMS (B+ Tree, Pager, LRU)
 
-A lightweight key–value store in C++ using a single-file storage format, a B+ tree index, LRU page cache, pager with dirty tracking, and a REPL for insert/delete/search operations.
-
-- **Indexing**: B+ tree over fixed-size pages
-- **Storage**: Single data file with root, interior/leaf pages, and trunk free-list pages
-- **Cache**: In-memory LRU Cache for pages with dirty tracking and flush-on-exit
-- **REPL**: CLI to insert, delete, and inspect
-
----
+A lightweight key–value store in C++ using a single-file slotted storage format, a B+ tree index, LRU page cache, pager with dirty tracking, defragmentation and a REPL for insert/delete/search operations.
 
 
 
@@ -108,7 +101,7 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
   - Inserts a new key/value into the B+ tree. If the key already exists, the insert is ignored (no update performed currently).
 
 - **Delete**: `d <key>`
-  - Removes the key if present. Triggers underflow handling: borrow from siblings or merge. May free pages into the trunk free-list.
+  - Removes the key if present. Triggers underflow handling: borrow from siblings or merge. May free pages into the trunk free-list. Defragmentation is done each time during removing a row. 
 
 - **Select (tree print)**: `s*`
   - Prints a level-order representation of the B+ tree: for interior nodes shows child page numbers and separator keys; for leaves shows leaf keys.
@@ -128,8 +121,7 @@ A lightweight key–value store in C++ using a single-file storage format, a B+ 
 
 ## Time Complexity
 
-- **Search/Insert/Delete**: O(log_f N), where f is the fan-out (branching factor). With `MAX_ROWS = 4`, f is small for testing; in general, B+ trees scale with page capacity, so f is large and depth is small.
-- **Split/Merge/Borrow**: Performed on a single path from root to leaf; amortized O(log N).
+- **Search/Insert/Delete**: O(f*log<sub>f</sub> N), where f is the fan-out (branching factor). With `MAX_ROWS = 4`, f is small for testing; in general, B+ trees scale with page capacity, so f is large and depth is small.
 - **Print tree** (`s*`): O(number of pages) for traversal.
 
 
