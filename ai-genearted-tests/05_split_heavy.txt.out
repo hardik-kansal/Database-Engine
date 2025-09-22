@@ -1,0 +1,322 @@
+db >[ ]    
+ :success
+db > :success
+db > :success
+db > :success
+db > :success
+db >split leaf and index>=splitIndex
+create new root
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+split internal
+split internal and index>splitIndex
+inserting at righmost
+create new root after split internal
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+split internal
+split internal and index>splitIndex
+inserting at righmost
+insert into internal after split internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+split internal
+split internal and index>splitIndex
+inserting at righmost
+insert into internal after split internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+split internal
+split internal and index>splitIndex
+inserting at righmost
+insert into internal after split internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+split internal
+split internal and index>splitIndex
+inserting at righmost
+insert into internal after split internal
+split internal
+split internal and index>splitIndex
+inserting at righmost
+create new root after split internal
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+insert into internal
+can insert into internal
+inserting at righmost
+ :success
+db > :success
+db >[ p: 27 k: 19 of: 4088 p: 26 ]    
+[ p: 9 k: 7 of: 4092 p: 8 k: 13 of: 4088 p: 13 ]    [ p: 17 k: 25 of: 4092 p: 21 k: 31 of: 4088 p: 25 ]    
+[ p: 3 k: 3 of: 4092 p: 2 k: 5 of: 4088 p: 4 ]    [ p: 5 k: 9 of: 4092 p: 6 k: 11 of: 4088 p: 7 ]    [ p: 10 k: 15 of: 4092 p: 11 k: 17 of: 4088 p: 12 ]    [ p: 14 k: 21 of: 4092 p: 15 k: 23 of: 4088 p: 16 ]    [ p: 18 k: 27 of: 4092 p: 19 k: 29 of: 4088 p: 20 ]    [ p: 22 k: 33 of: 4092 p: 23 k: 35 of: 4088 p: 24 k: 37 of: 4084 p: 28 ]    
+[ lk: 1 lk: 2 ]    [ lk: 3 lk: 4 ]    [ lk: 5 lk: 6 ]    [ lk: 7 lk: 8 ]    [ lk: 9 lk: 10 ]    [ lk: 11 lk: 12 ]    [ lk: 13 lk: 14 ]    [ lk: 15 lk: 16 ]    [ lk: 17 lk: 18 ]    [ lk: 19 lk: 20 ]    [ lk: 21 lk: 22 ]    [ lk: 23 lk: 24 ]    [ lk: 25 lk: 26 ]    [ lk: 27 lk: 28 ]    [ lk: 29 lk: 30 ]    [ lk: 31 lk: 32 ]    [ lk: 33 lk: 34 ]    [ lk: 35 lk: 36 ]    [ lk: 37 lk: 38 lk: 39 lk: 40 ]    
+ :success
+db >Key 1  success
+ :success
+db >borrowing from right sibling
+Key 2  success
+ :success
+db >merging with right sibling
+Key 3  success
+ :success
+db >borrowing from right sibling
+Key 4  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+borrowing from right sibling internal
+inserting at righmost
+Key 5  success
+ :success
+db >borrowing from right sibling
+Key 6  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+merging with right sibling internal
+[ p: 3 ]    pager: 3
+freeStart: 3
+rightInternal: 6
+inserting at righmost
+[ p: 3 k: 9 of: 4092 p: 6 ]    inserting at righmost
+Key 7  success
+ :success
+db >borrowing from right sibling
+Key 8  success
+ :success
+db >merging with right sibling
+Key 9  success
+ :success
+db >borrowing from right sibling
+Key 10  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+borrowing from right sibling internal
+inserting at righmost
+Key 11  success
+ :success
+db >borrowing from right sibling
+Key 12  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+merging with right sibling internal
+[ p: 3 ]    pager: 3
+freeStart: 3
+rightInternal: 11
+inserting at righmost
+[ p: 3 k: 15 of: 4092 p: 11 ]    inserting at righmost
+handleInternalUnderflowAgain
+borrowing from right sibling internal
+inserting at righmost
+Key 13  success
+ :success
+db >borrowing from right sibling
+Key 14  success
+ :success
+db >merging with right sibling
+Key 15  success
+ :success
+db >borrowing from right sibling
+Key 16  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+borrowing from right sibling internal
+inserting at righmost
+Key 17  success
+ :success
+db >borrowing from right sibling
+Key 18  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+merging with right sibling internal
+[ p: 3 ]    pager: 3
+freeStart: 3
+rightInternal: 15
+inserting at righmost
+[ p: 3 k: 21 of: 4092 p: 15 ]    inserting at righmost
+handleInternalUnderflowAgain
+merging with right sibling internal
+[ p: 9 ]    pager: 9
+freeStart: 9
+rightInternal: 21
+inserting at righmost
+[ p: 9 k: 25 of: 4092 p: 21 ]    inserting at righmost
+Key 19  success
+ :success
+db >borrowing from right sibling
+Key 20  success
+ :success
+db >merging with right sibling
+Key 21  success
+ :success
+db >borrowing from right sibling
+Key 22  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+borrowing from right sibling internal
+inserting at righmost
+Key 23  success
+ :success
+db >borrowing from right sibling
+Key 24  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+merging with right sibling internal
+[ p: 3 ]    pager: 3
+freeStart: 3
+rightInternal: 19
+inserting at righmost
+[ p: 3 k: 27 of: 4092 p: 19 ]    inserting at righmost
+Key 25  success
+ :success
+db >borrowing from right sibling
+Key 26  success
+ :success
+db >merging with right sibling
+Key 27  success
+ :success
+db >borrowing from right sibling
+Key 28  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+borrowing from right sibling internal
+inserting at righmost
+Key 29  success
+ :success
+db >borrowing from right sibling
+Key 30  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+borrowing from right sibling internal
+inserting at righmost
+Key 31  success
+ :success
+db >borrowing from right sibling
+Key 32  success
+ :success
+db >merging with right sibling
+handleInternalUnderflow
+merging with right sibling internal
+[ p: 3 ]    pager: 3
+freeStart: 3
+rightInternal: 24
+inserting at righmost
+[ p: 3 k: 35 of: 4092 p: 24 ]    inserting at righmost
+Key 33  success
+ :success
+db >borrowing from right sibling
+Key 34  success
+ :success
+db >merging with right sibling
+Key 35  success
+ :success
+db >borrowing from right sibling
+Key 36  success
+ :success
+db >borrowing from right sibling
+Key 37  success
+ :success
+db >borrowing from right sibling
+Key 38  success
+ :success
+db >merging with right sibling
+root changed to left internal
+Key 39  success
+ :success
+db >Key 40  success
+ :success
+db >[ ]    
+ :success
+db >

@@ -1,0 +1,42 @@
+db >[ ]    
+ :success
+db > :success
+db > :success
+db > :success
+db >Key 2  success
+ :success
+db > :success
+db > :success
+db >Key 1  success
+ :success
+db > :success
+db >Key 3  success
+ :success
+db > :success
+db >Key 5  success
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+create new root
+ :success
+db > :success
+db >Key 4  success
+ :success
+db >borrowing from right sibling
+Key 6  success
+ :success
+db >borrowing from right sibling
+Key 7  success
+ :success
+db >borrowing from right sibling
+Key 8  success
+ :success
+db >merging with right sibling
+root changed to left internal
+Key 9  success
+ :success
+db >Key 10  success
+ :success
+db >[ ]    
+ :success
+db >

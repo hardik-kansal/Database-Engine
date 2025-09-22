@@ -1,0 +1,28 @@
+db >[ ]    
+ :success
+db > :success
+db > :success
+db > :success
+db > :success
+db >split leaf and index<splitIndex
+create new root
+ :success
+db >[ p: 3 k: 3 of: 4088 p: 2 ]    
+[ lk: 1 lk: 2 ]    [ lk: 3 lk: 4 lk: 5 ]    
+ :success
+db >Key 5  success
+ :success
+db >Key 4  success
+ :success
+db >borrowing from left sibling
+Key 3  success
+ :success
+db >merging with left sibling
+root changed to left internal
+Key 2  success
+ :success
+db >Key 1  success
+ :success
+db >[ ]    
+ :success
+db >

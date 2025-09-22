@@ -1,0 +1,61 @@
+db >[ ]    
+ :success
+db > :success
+db > :success
+db > :success
+db >[ lk: 1 lk: 2 lk: 3 ]    
+ :success
+db >Key 2  success
+ :success
+db >[ lk: 1 lk: 3 ]    
+ :success
+db > :success
+db > :success
+db >[ lk: 1 lk: 3 lk: 4 lk: 5 ]    
+ :success
+db >Key 1  success
+ :success
+db >[ lk: 3 lk: 4 lk: 5 ]    
+ :success
+db > :success
+db >[ lk: 3 lk: 4 lk: 5 lk: 6 ]    
+ :success
+db >Key 3  success
+ :success
+db >[ lk: 4 lk: 5 lk: 6 ]    
+ :success
+db > :success
+db >[ lk: 4 lk: 5 lk: 6 lk: 7 ]    
+ :success
+db >Key 5  success
+ :success
+db >[ lk: 4 lk: 6 lk: 7 ]    
+ :success
+db > :success
+db >split leaf and index>=splitIndex
+create new root
+ :success
+db > :success
+db >[ p: 3 k: 7 of: 4088 p: 2 ]    
+[ lk: 4 lk: 6 ]    [ lk: 7 lk: 8 lk: 9 lk: 10 ]    
+ :success
+db >Key 4  success
+ :success
+db >borrowing from right sibling
+Key 6  success
+ :success
+db >borrowing from right sibling
+Key 7  success
+ :success
+db >borrowing from right sibling
+Key 8  success
+ :success
+db >merging with right sibling
+root changed to left internal
+Key 9  success
+ :success
+db >Key 10  success
+ :success
+db >[ ]    
+ :success
+db >

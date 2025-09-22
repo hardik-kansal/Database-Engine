@@ -1,0 +1,12 @@
+db >[ ]    
+ :success
+db > :success
+db > :success
+db > :success
+db >[ lk: 5 ]    
+ :success
+db >Key 5  success
+ :success
+db >[ ]    
+ :success
+db >
