@@ -21,6 +21,9 @@
 #define GET_PREV_TRUNK_PAGE(ptr) *((uint32_t*)(ptr)+3)
 #define GET_ROW_COUNT_TRUNK(ptr) *((uint32_t*)(ptr)+2)
 
+// RootNode
+#define GET_TRUNK_START(ptr) *(uint32_t*)(((uint8_t*)(ptr)+PAGE_SIZE-sizeof(uint32_t)))
+
 
 
 
@@ -83,6 +86,21 @@ void convertHeaderToLittleEndian(void* node,uint8_t* temp){
 }
 
 
+/*
+    uint32_t pageNumber;    // 4
+    PageType type;          // 4 since int declarartion
+    uint16_t rowCount;      // 2 no of rows
+    uint16_t freeStart;     // 2 (start of free space in payload)
+    uint16_t freeEnd;       // 2 (end of free space in payload)  
+    RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
+    char payload[MAX_PAYLOAD_SIZE];
+*/
+
+/*
+    char payload[MAX_PAYLOAD_SIZE_ROOT];
+    uint32_t trunkStart;
+*/
+
 void covertRowSlotToLittleEndian(void* node,uint8_t* temp){
     for(uint16_t i=0;i<GET_ROW_COUNT(node);i++){
         uint64_t key=__builtin_bswap64(GET_ROW_SLOT_KEY(node,i));
@@ -94,9 +112,55 @@ void covertRowSlotToLittleEndian(void* node,uint8_t* temp){
     }
 }
 
+void reverseBytes(uint8_t* temp,uint32_t length){
+    for(uint32_t j = 0; j < length / 2; j++){
+        uint8_t t = temp[j];
+        temp[j] = temp[length - 1 - j];
+        temp[length - 1 - j] = t;
+    }
+}
+
 
 void convertPayloadToLittleEndian(void* node,uint8_t* temp,uint16_t size){
-    
+    // interior node have fixed offset of length uint32_t
+    if(GET_PAGE_TYPE(node)==0){
+        const uint16_t payloadStart = FREE_END_DEFAULT;
+        uint32_t* src;
+        if(GET_PAGE_NO(node)==1){
+            src = (uint32_t*)((RootPageNode*)node)->payload;
+        } else {
+            src = (uint32_t*)((pageNode*)node)->payload;
+        }
+
+        for(uint16_t i = 0; i < size; i += 4){
+            uint32_t v;
+            memcpy(&v, ((uint8_t*)src) + i, 4);
+            v = __builtin_bswap32(v);
+            memcpy(temp + payloadStart + i, &v, 4);
+        }
+    }
+    // leaf
+    else{
+        const uint16_t payloadStart = FREE_END_DEFAULT;
+        uint8_t* src;
+        uint16_t rowCount;
+        if(GET_PAGE_NO(node)==1){
+            src = (uint8_t*)((RootPageNode*)node)->payload;
+            rowCount = ((RootPageNode*)node)->rowCount;
+        } else {
+            src = (uint8_t*)((pageNode*)node)->payload;
+            rowCount = ((pageNode*)node)->rowCount;
+        }
+        
+        memcpy(temp + payloadStart, src, size);
+        
+        for(uint16_t i = 0; i < rowCount; i++){
+            uint16_t offset = GET_ROW_SLOT_OFFSET(node,i);
+            uint32_t length = GET_ROW_SLOT_LENGTH(node,i);
+            // reverse in-place within temp buffer
+            reverseBytes(temp+offset,length);
+        }
+    }
 }
 
 
@@ -111,6 +175,10 @@ void convertPayloadToLittleEndian(void* node,uint8_t* temp,uint16_t size){
 */
 
 void convertTrunkPayloadToLittleEndian(void* node,uint8_t* temp){
+    for(uint32_t i=0;i<GET_ROW_COUNT_TRUNK(node);i++){
+        uint32_t page_no=__builtin_bswap32(((TrunkPageNode*)node)->tPages[i]);
+        memcpy(temp+16+i*4,&page_no,4);
+    }
 }
 
 void convertTrunkPageToLittleEndian(void* node,uint8_t* temp){
@@ -126,33 +194,27 @@ void convertTrunkPageToLittleEndian(void* node,uint8_t* temp){
 }
 
 
-
-
 void convertToLittleEndian(void* node,uint8_t* temp){
-    if(GET_PAGE_NO(node)==0 || GET_PAGE_NO(node)==1){
+    // interior,leaf
+    if(GET_PAGE_TYPE(node)==0 || GET_PAGE_TYPE(node)==1){
         convertHeaderToLittleEndian(node,temp);
         covertRowSlotToLittleEndian(node,temp);
+        // RootPage
         if(GET_PAGE_NO(node)==1){
             convertPayloadToLittleEndian(node,temp,MAX_PAYLOAD_SIZE_ROOT);
+            uint32_t trunkStart=__builtin_bswap32(GET_TRUNK_START(node));
+            memcpy(temp+PAGE_SIZE-sizeof(uint32_t),&trunkStart,4);
         }
+        // pageNode
         else{
             convertPayloadToLittleEndian(node,temp,MAX_PAYLOAD_SIZE);
         }
     }
+    // trunkPage
     else{
         convertTrunkPageToLittleEndian(node,temp);
     }
 }
-
-
-
-
-
-
-
-
-
-
 
 
 
