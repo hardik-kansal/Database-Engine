@@ -119,11 +119,20 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 
 
 
-## Time Complexity
+## Complexity Analysis
+
+### Time Complexity 
 
 - **Search/Insert/Delete**: O(f x lnf x log<sub>f</sub> N), where f is the fan-out (branching factor). With `MAX_ROWS = 4`, f is small for testing; in general, B+ trees scale with page capacity, so f is large and depth is small.
 - **Print tree** (`s*`): O(number of pages) for traversal.
 
+### l1/l2 Cache hit rate (using PAPI lib)
+
+My machine is AMD Ryzen 5 5600X, Single Socket, 8 cores, 16PU, l1 (32kb/core), l2 (64kb/core)
+
+
+- **l1 hit rate**: ~9%
+- **l2 hit rate**: ~100%
 
 
 ---

@@ -8,6 +8,8 @@
 #include <unistd.h> // read(), write(), close()
 #include <fcntl.h> //open(), O_CREAT
 #include "enums.h"
+#include <papi.h>
+
 using namespace std;
 
 #endif
