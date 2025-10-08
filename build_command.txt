@@ -1,0 +1,18 @@
+# Build Command
+rm -f f1.db && g++ -std=c++17 -O2 main.cpp -o db_server -lpthread
+
+# Insert
+curl -X POST "http://127.0.0.1:8080/insert?key=1&payload=hello"
+
+# Show whole tree
+curl "http://127.0.0.1:8080/select"
+
+# Show one node
+curl "http://127.0.0.1:8080/select/1"
+
+# Delete
+curl -X DELETE "http://127.0.0.1:8080/delete/1"
+
+# Shutdown
+curl -X POST "http://127.0.0.1:8080/shutdown"
+

@@ -9,63 +9,10 @@ struct Table{
     Bplustrees* bplusTrees;
 };
 
-struct InputBuffer{
-    char* buffer;
-    size_t bufferLength;
-    ssize_t inputLength; // getline returns -1 in error , 0 if not read- rare
-};
 struct Statement{
     StatementType type;
     Row_schema row;
 };
-void print_prompt(){cout<<"db >";}
-InputBuffer* createEmptyBuffer(){
-    InputBuffer* inputBuffer=new InputBuffer();
-    inputBuffer->buffer=nullptr;
-    inputBuffer->bufferLength=0;
-    inputBuffer->inputLength=0;
-    return inputBuffer;
-}
-void read_input(InputBuffer* inputBuffer){
-    ssize_t bytesLength=getline(&(inputBuffer->buffer),&(inputBuffer->bufferLength),stdin);
-    if(bytesLength<=0)exit(EXIT_FAILURE);
-    inputBuffer->inputLength=bytesLength-1;
-    inputBuffer->buffer[bytesLength-1]=0;
-    // hello↵
-    // getline stores this hello\n\0
-    // \0 is null terminator
-    // \n \0 are single character and 0 and \0 means same in c c++ not '0';
-}
-
-
-
-  
-PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) {
-    if (strcmp(input_buffer->buffer, "s*") == 0) {
-      statement->type = STATEMENT_SELECT;
-      return PREPARE_SUCCESS;
-    }
-    if (strncmp(input_buffer->buffer, "s",1) == 0) {
-        statement->type = STATEMENT_SELECT_ID;
-        int args_assigned=sscanf(input_buffer->buffer,"s %lu",&(statement->row.key));
-        if(args_assigned<1)return PREPARE_UNRECOGNIZED_STATEMENT;
-        return PREPARE_SUCCESS;
-      }
-    if (strncmp(input_buffer->buffer, "i",1) == 0) {   // strncp reads only first 6 bytes
-      statement->type = STATEMENT_INSERT;
-      int args_assigned=sscanf(input_buffer->buffer,"i %lu %s",&(statement->row.key),statement->row.payload);
-      if(args_assigned<2)return PREPARE_UNRECOGNIZED_STATEMENT;
-      return PREPARE_SUCCESS;
-    }
-    if (strncmp(input_buffer->buffer, "d",1) == 0) {   // strncp reads only first 6 bytes
-        statement->type = STATEMENT_DELETE;
-        int args_assigned=sscanf(input_buffer->buffer,"d %lu",&(statement->row.key));
-        if(args_assigned<1)return PREPARE_UNRECOGNIZED_STATEMENT;
-        return PREPARE_SUCCESS;
-      }
-  
-    return PREPARE_UNRECOGNIZED_STATEMENT;
-  }
 
 
 Pager* pager_open(const char* filename,uint32_t capacity) {
@@ -105,16 +52,6 @@ void close_db(Table* table) {
     table->pager->flushAll();
 }
 
-MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
-    if (strcmp(input_buffer->buffer, ".exit") == 0) {
-        close_db(table);
-        exit(EXIT_SUCCESS);
-    }
-    else {
-        return META_COMMAND_UNRECOGNIZED_COMMAND;
-    }
-}
-
 executeResult execute_insert(Statement* statement, Table* table) {
     table->bplusTrees->insert(statement->row.key, statement->row.payload);
     return EXECUTE_SUCCESS;
@@ -125,7 +62,9 @@ executeResult execute_select(Statement* statement, Table* table) {
     return EXECUTE_SUCCESS;
 }
 executeResult execute_select_id(Statement* statement, Table* table) {
-    table->bplusTrees->printNode(table->pager->getPage(statement->row.key));
+    // Find the leaf page that would contain this key and print that node
+    uint32_t page_no = table->bplusTrees->search(statement->row.key);
+    table->bplusTrees->printNode(table->pager->getPage(page_no));
     return EXECUTE_SUCCESS;
 }
 
@@ -158,50 +97,80 @@ executeResult execute_statement(Statement* statement, Table* table) {
 
 
 
+int main() {
+    const uint32_t capacity = 256;
+    Table* table = create_db("f1.db", capacity);
 
-int main(){
-    const uint32_t capacity=256;
-    Table * table= create_db("f1.db",capacity);
+    std::mutex dbmu;           
+    httplib::Server svr;
 
-    while (true){
-
-        InputBuffer* inputBuffer=createEmptyBuffer();
-        print_prompt();
-        read_input(inputBuffer);
-        if(inputBuffer->buffer[0]=='.'){
-            switch (do_meta_command(inputBuffer,table)){
-                case META_COMMAND_UNRECOGNIZED_COMMAND:
-                    cout<<"META_COMMAND_UNRECOGNIZED_COMMAND"<<endl;
-                    exit(EXIT_FAILURE);
-                case META_COMMAND_SUCCESS:
-                    continue;
-            }
+    // POST /insert?key=1&payload=abc
+    auto insert_handler = [&](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_param("key") || !req.has_param("payload")) {
+            res.status = 400;
+            res.set_content("missing key or payload", "text/plain");
+            return;
         }
+        uint64_t key = std::stoul(req.get_param_value("key"));
+        std::string payload = req.get_param_value("payload");
 
-        Statement* statement=new Statement();
-        switch (prepare_statement(inputBuffer,statement)){
-            case PREPARE_UNRECOGNIZED_STATEMENT:
-                cout<<"PREPARE_UNRECOGNIZED_STATEMENT"<<endl;
-                exit(EXIT_FAILURE);
-            case PREPARE_SUCCESS:
-                break;
+        Statement st{};
+        st.type = STATEMENT_INSERT;
+        st.row.key = key;
+        std::snprintf(st.row.payload, sizeof(st.row.payload), "%s", payload.c_str());
+
+        std::lock_guard<std::mutex> lk(dbmu);
+        execute_statement(&st, table);
+        res.set_content("insert: success\n", "text/plain");
+    };
+    svr.Post("/insert", insert_handler);
+    svr.Get("/insert", insert_handler);
+
+    // GET /select   -> printTree() output
+    svr.Get("/select", [&](const httplib::Request&, httplib::Response& res) {
+        std::ostringstream oss;
+        std::lock_guard<std::mutex> lk(dbmu);
+        auto* old = cout.rdbuf(oss.rdbuf());          
+        table->bplusTrees->printTree();
+        cout.rdbuf(old);                              
+        res.set_content(oss.str(), "text/plain");
+    });
+
+    // GET /select/<id>  -> printNode(leaf_page_for_key)
+    svr.Get(R"(/select/(\d+))", [&](const httplib::Request& req, httplib::Response& res) {
+        unsigned long key = std::stoul(req.matches[1]);
+        std::ostringstream oss;
+        std::lock_guard<std::mutex> lk(dbmu);
+        auto* old = cout.rdbuf(oss.rdbuf());
+        uint32_t page_no = table->bplusTrees->search(key);
+        table->bplusTrees->printNode(table->pager->getPage(page_no));
+        cout.rdbuf(old);
+        res.set_content(oss.str(), "text/plain");
+    });
+
+    // DELETE /delete/<id>
+    svr.Delete(R"(/delete/(\d+))", [&](const httplib::Request& req, httplib::Response& res) {
+        unsigned long key = std::stoul(req.matches[1]);
+        Statement st{};
+        st.type = STATEMENT_DELETE;
+        st.row.key = key;
+        std::lock_guard<std::mutex> lk(dbmu);
+        execute_statement(&st, table);
+        res.set_content("delete: executed\n", "text/plain");
+    });
+
+    // POST /shutdown
+    svr.Post("/shutdown", [&](const httplib::Request&, httplib::Response& res) {
+        {
+            std::lock_guard<std::mutex> lk(dbmu);
+            close_db(table);
         }
-        switch(execute_statement(statement,table)){
-            case EXECUTE_SUCCESS:
-                cout<<" :success"<<endl;
-                break;
-            case EXECUTE_UNRECOGNIZED_STATEMENT:
-                cout<<" :failed"<<endl;
-                cout<<"REASON: "<<"EXECUTE_UNRECOGNIZED_STATEMENT"<<endl;
-                exit(EXIT_FAILURE);
-            case EXECUTE_MAX_ROWS:
-                cout<<" :failed"<<endl;
-                cout<<"REASON: "<<"EXECUTE_MAX_ROWS"<<endl;
-                exit(EXIT_FAILURE);
-        }
-        delete inputBuffer;
-        delete statement;
-        
-    }
+        res.set_content("bye\n", "text/plain");
+        svr.stop(); 
+        return 0;
+    });
+
+    cout << "listening on http://127.0.0.1:8080"<<endl;
+    svr.listen("127.0.0.1", 8080);
     return 0;
 }
