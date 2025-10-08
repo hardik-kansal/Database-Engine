@@ -1,6 +1,6 @@
 # Custom DBMS (B+ Tree, Pager, LRU)
 
-A lightweight key–value store in C++ using a single-file slotted storage format, a B+ tree index, LRU page cache, pager with dirty tracking, defragmentation and a REPL for insert/delete/search operations.
+A lightweight key–value store in C++ using a single-file slotted storage format, a B+ tree index, LRU page cache, pager with dirty tracking, defragmentation and HTTP API for insert/delete/search operations.
 
 
 
@@ -10,7 +10,7 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 2. [Main Data Structures](#main-data-structures)
 3. [Storage, Indexing, and On-Disk Format](#storage-indexing-and-on-disk-format)
 4. [Basic Workflow](#basic-workflow-with-function-references)
-5. [Supported Operations (REPL)](#supported-operations-repl)
+5. [HTTP API](#http-api)
 6. [Time Complexity](#time-complexity)
 7. [Memory Management and Caching](#memory-management-and-caching)
 8. [Constants](#constants)
@@ -72,21 +72,21 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
   - `Bplustrees::Bplustrees(pager)` fetches/initializes root via `Pager::getRootPage()` and seeds LRU with page 1.
 
 2. **Insert path**
-  - `main.cpp`: REPL parses `i <key> <value>` → `execute_insert` → `Bplustrees::insert(key, payload)`.
+   - `main.cpp`: HTTP API receives URL parameters `?key=123&payload=value` → `execute_insert` → `Bplustrees::insert(key, payload)`.
   - Traverse: `search`-like descent using `Pager::getPage(...)` and `upper/lower bound` to reach target leaf.
   - Insert into leaf: `insertIntoLeaf` → `insertRowAt` if fits; otherwise `splitLeafAndInsert`.
   - Split handling: create `createNewLeafPage`, move rows (`moveRowsToNewLeaf`), possibly `createNewRoot` or `insertIntoInternal` (which may trigger `splitInternalAndInsert`).
   - Allocation: `new_page_no()` prefers recycled pages from trunk via `Pager::getTrunkPage(...)`; else increases `Pager::numOfPages`.
 
 3. **Delete path**
-  - `main.cpp`: REPL parses `d <key>` → `execute_delete` → `Bplustrees::deleteKey(key)`.
+   - `main.cpp`: HTTP API receives DELETE `/delete/123` → `execute_delete` → `Bplustrees::deleteKey(key)`.
   - Remove from leaf: `deleteFromLeaf` → `removeRowFromLeaf` → `defragLeaf`.
   - Underflow: `handleLeafUnderflow` attempts borrow (`borrowFromLeftLeaf`/`borrowFromRightLeaf`) else merges via `mergeLeafNodes`.
   - Internal fixes: `handleInternalUnderflow` with borrow (`borrowFromLeftInternal`/`borrowFromRightInternal`) or merge (`mergeInternalNodes`), possibly changing the root via `createNewRoot` semantics or collapsing.
   - Freeing pages: `freePage(pageNumber)` records pages into trunk; may create a new trunk page via `createNewTrunkPage`.
 
 4. **Flush and exit**
-  - `.exit` → `close_db` → `Pager::flushAll()` writes root and any dirty pages via `writePage`.
+   - Server shutdown → `close_db` → `Pager::flushAll()` writes root and any dirty pages via `writePage`.
 
 
 
@@ -95,22 +95,57 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 
 
 
-## Supported Operations (REPL)
+## HTTP API
 
-- **Insert**: `i <key> <value>`
+The database exposes a REST API on port 8080 with the following endpoints:
+
+### Insert Operation
+- **POST/GET** `/insert?key=<key>&payload=<value>`
   - Inserts a new key/value into the B+ tree. If the key already exists, the insert is ignored (no update performed currently).
+  - Parameters: `key` (required), `payload` (required)
+  - Returns: `insert: success\n` (text/plain)
 
-- **Delete**: `d <key>`
-  - Removes the key if present. Triggers underflow handling: borrow from siblings or merge. May free pages into the trunk free-list. Defragmentation is done each time during removing a row. 
+### Delete Operation
+- **DELETE** `/delete/<key>`
+  - Removes the key if present. Triggers underflow handling: borrow from siblings or merge. May free pages into the trunk free-list. Defragmentation is done each time during removing a row.
+  - Returns: `delete: executed\n` (text/plain)
 
-- **Select (tree print)**: `s*`
-  - Prints a level-order representation of the B+ tree: for interior nodes shows child page numbers and separator keys; for leaves shows leaf keys.
+### Select Operations
+- **GET** `/select`
+  - Returns a level-order representation of the B+ tree: for interior nodes shows child page numbers and separator keys; for leaves shows leaf keys.
+  - Returns: Tree structure as text/plain
 
-- **Select (inspect page)**: `s <page_no>`
-  - Prints a single page node (primarily for debugging). The argument is a page number, not a row key.
+- **GET** `/select/<key>`
+  - Returns a single page node containing the specified key (primarily for debugging).
+  - Returns: Page node details as text/plain
 
-- **Meta**: `.exit`
-  - Flushes dirty pages and exits.
+### Shutdown
+- **POST** `/shutdown`
+  - Flushes dirty pages and shuts down the server.
+  - Returns: `bye\n` (text/plain)
+
+### Example Usage
+
+```bash
+# Insert a key-value pair (POST)
+curl -X POST -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "key=1&payload=hello" "http://127.0.0.1:8080/insert"
+
+# Insert a key-value pair (GET)
+curl "http://127.0.0.1:8080/insert?key=1&payload=world"
+
+# Select all (prints tree structure)
+curl "http://127.0.0.1:8080/select"
+
+# Select specific key
+curl "http://127.0.0.1:8080/select/1"
+
+# Delete a key
+curl -X DELETE "http://127.0.0.1:8080/delete/1"
+
+# Shutdown server
+curl -X POST "http://127.0.0.1:8080/shutdown"
+```
 
 
 
@@ -122,7 +157,7 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 ## Time Complexity
 
 - **Search/Insert/Delete**: O(f x lnf x log<sub>f</sub> N), where f is the fan-out (branching factor). With `MAX_ROWS = 4`, f is small for testing; in general, B+ trees scale with page capacity, so f is large and depth is small.
-- **Print tree** (`s*`): O(number of pages) for traversal.
+- **Print tree** (GET `/select`): O(number of pages) for traversal.
 
 
 
@@ -135,7 +170,7 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 
 - **LRU**: All loaded pages are cached in an LRU with configurable capacity (default `256` in `main.cpp`).
 - **Dirty Tracking**: `pageNode`/`RootPageNode`/`TrunkPageNode` include a `dirty` flag to avoid unnecessary writes. Root is always written on flush; other pages only if dirty.
-- **Flush**: On `.exit`, `Pager::flushAll()` writes pages to disk.
+- **Flush**: On server shutdown, `Pager::flushAll()` writes pages to disk.
 
 
 
@@ -209,15 +244,16 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 
 ## Getting Started
 
-- **Prerequisites**: g++ (C++17), Little-Endian host machine
+- **Prerequisites**: g++ (C++17), Little-Endian host machine, cpp-httplib
 
 - **Build**
   - From the project root:
 
-    ```cpp
-    g++ -std=gnu++17 -O2 -o dbms main.cpp
-    ./dbms
+    ```bash
+    rm -f f1.db && g++ -std=c++17 -O2 main.cpp -o db_server -lpthread && ./db_server
     ```
+
+  - The server will start listening on `http://127.0.0.1:8080`
 
     Reason for using `-O2`: The code relies on a tightly packed memory layout for pages and records, enforced via `__attribute__((packed))` in struct definitions. This is crucial for correct on-disk and in-memory page structure. The `-O2` optimization flag helps ensure the compiler does not introduce unexpected padding or reordering, keeping the layout compact and predictable. 
     An appropriate approach for production systems would be **not** to use C++ structs for on-disk page layout,
@@ -252,7 +288,7 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 
 ## Repository Layout
 
-- `main.cpp`: REPL and wiring (`Table`, command parsing, execution)
+- `main.cpp`: HTTP server and wiring (`Table`, JSON parsing, execution)
 - `btree.h`: B+ tree implementation (insert, delete, search, split/merge, print)
 - `pager.h`: Page I/O, cache integration, endian conversion, flush
 - `LRU.h`: LRU cache
@@ -270,7 +306,7 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 
 - Insertion does not currently update existing keys.
 - Endianness behavior is implemented, but not yet thoroughly tested on big-endian hosts.
-- No concurrency support yet.
+- HTTP server supports multiple concurrent clients with mutex-based thread safety.
 - Only works on machine based on 2's complement arithmatics :)
 
 
