@@ -1,6 +1,6 @@
 # Custom DBMS (B+ Tree, Pager, LRU)
 
-A lightweight key–value store in C++ using a single-file slotted storage format, a B+ tree index, LRU page cache, pager with dirty tracking, defragmentation and a REPL for insert/delete/search operations.
+A lightweight key–value store in C++ using a single-file slotted storage format, a B+ tree index, LRU page cache, pager with dirty tracking, defragmentation, rollback journal system with automatic recovery, and a REPL for insert/delete/search operations with transaction support.
 
 
 
@@ -10,14 +10,15 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 2. [Main Data Structures](#main-data-structures)
 3. [Storage, Indexing, and On-Disk Format](#storage-indexing-and-on-disk-format)
 4. [Basic Workflow](#basic-workflow-with-function-references)
-5. [Supported Operations (REPL)](#supported-operations-repl)
-6. [Time Complexity](#time-complexity)
-7. [Memory Management and Caching](#memory-management-and-caching)
-8. [Constants](#constants)
-9. [Maximum Values and Limits](#maximum-values-and-limits)
-10. [Getting Started](#getting-started)
-11. [Repository Layout](#repository-layout)
-12. [Notes](#notes)
+5. [Transaction Support and Journal System](#transaction-support-and-journal-system)
+6. [Supported Operations (REPL)](#supported-operations-repl)
+7. [Time Complexity](#time-complexity)
+8. [Memory Management and Caching](#memory-management-and-caching)
+9. [Constants](#constants)
+10. [Maximum Values and Limits](#maximum-values-and-limits)
+11. [Getting Started](#getting-started)
+12. [Repository Layout](#repository-layout)
+13. [Notes](#notes)
 
 
 ---
@@ -94,6 +95,98 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 
 
 
+## Transaction Support and Rollback Journal System
+
+The DBMS implements a **rollback journal** system with automatic recovery capabilities for transaction safety and crash recovery. This is different from WAL (Write-Ahead Logging) - it stores the **original** page content before modification, allowing rollback to the pre-transaction state.
+
+
+### **Journal File Format**
+
+The journal file (`f1-jn.db`) uses a sector-aligned (512-byte) format for optimal disk I/O:
+
+```
+[Rollback Header] (sector-aligned)
+[Page 1 + Checksum] (sector-aligned)
+[Page 2 + Checksum] (sector-aligned)
+...
+[Commit Marker] (8 bytes: MAGIC_NUMBER)
+```
+
+**Rollback Header Structure:**
+```cpp
+struct rollback_header {
+    uint64_t magicNumber;    // 8 bytes - To detect corrupted transaction
+    uint32_t numOfPages;     // 4 bytes - Number of pages before a transaction/query begins
+    uint32_t salt1;          // 4 bytes - Database versioning
+    uint32_t salt2;          // 4 bytes - Checksum salt 
+}
+```
+
+
+
+### **Technical Details**
+
+**Why `fsync()`?**
+- **Durability Guarantee**: `fsync()` forces OS to write buffered data to disk
+- **Crash Safety**: Without `fsync()`, data might be lost in OS buffers during crash
+- **ACID Compliance**: Ensures "D" (Durability) property of transactions
+
+**Why Checksums?**
+- **Data Integrity**: Detects corruption during disk I/O or memory errors
+- **Rollback Safety**: Ensures journal pages are valid before restoring
+- **Silent Corruption Prevention**: Catches hardware/software errors that could corrupt data
+- **CRC32 Algorithm**: Fast, reliable error detection with low collision probability
+
+**Why Salt Values?**
+- **`salt1`**: Database versioning - allows schema evolution without breaking existing journals
+- **`salt2`**: Random checksum salt - prevents predictable checksum attacks
+- **Checksum Uniqueness**: `crc32_with_salt(page, PAGE_SIZE, salt1, salt2)` creates unique checksums
+- **Security**: Prevents malicious checksum manipulation
+
+### **Transaction Modes**
+
+- **Auto-Commit Mode** (`COMMIT_NOW = true`): Each operation immediately commits
+- **Transaction Mode** (`COMMIT_NOW = false`): Operations are batched until `.c`
+
+### **Crash Recovery**
+
+On database startup:
+1. **Journal Detection**: Check for existing journal file (`f1-jn.db`)
+2. **Magic Validation**: Verify journal header magic number (`MAGIC_NUMBER`)
+3. **Commit Marker Check**: Look for commit marker at end of journal
+4. **Recovery Decision**:
+   - **If commit marker found**: Transaction completed successfully, journal can be ignored
+   - **If no commit marker**: Transaction was interrupted, perform rollback
+5. **Rollback Process**: 
+   - Read journal pages with checksum validation
+   - Restore original pages to main database
+   - Database returns to pre-transaction state
+6. **Journal Cleanup**: Journal file is removed after successful rollback
+
+### **ACID Properties**
+
+- **Atomicity**: All-or-nothing transaction semantics via journal rollback
+- **Consistency**: Checksum validation ensures data integrity
+- **Isolation**: Single-threaded operations (no concurrency)
+- **Durability**: `fsync()` ensures data is written to disk
+
+### **Example Transaction Usage**
+
+```bash
+# Start transaction
+.bt
+i 100 data1
+i 101 data2
+i 102 data3
+s*                    # View changes (not yet committed)
+.c                    # Commit transaction
+s*                    # Changes now permanent
+
+# Auto-commit mode (default)
+i 200 data4           # Immediately committed
+```
+
+---
 
 ## Supported Operations (REPL)
 
@@ -108,6 +201,10 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 
 - **Select (inspect page)**: `s <page_no>`
   - Prints a single page node (primarily for debugging). The argument is a page number, not a row key.
+
+- **Transaction Commands**:
+  - **`.bt`** - Begin Transaction: Starts a transaction, disabling auto-commit
+  - **`.c`** - Commit Transaction: Commits all pending changes and returns to auto-commit mode
 
 - **Meta**: `.exit`
   - Flushes dirty pages and exits.
@@ -154,7 +251,7 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 - `FREE_START_DEFAULT_ROOT = 4092`
 - `FREE_END_DEFAULT = PAGE_HEADER_SIZE + ROW_SLOT_SIZE * MAX_ROWS` 
 - `NO_OF_TPAGES (trunk) = 2040` 
-
+- `SECTOR_SIZE = 512`
 
 
 ---
@@ -272,6 +369,9 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 - Endianness behavior is implemented, but not yet thoroughly tested on big-endian hosts.
 - No concurrency support yet.
 - Only works on machine based on 2's complement arithmatics :)
+- Transaction support includes automatic crash recovery via rollback journal.
+- Rollback journal files are automatically cleaned up after successful commits.
+- Uses rollback journal (not WAL) - stores original page content for rollback capability.
 
 
 

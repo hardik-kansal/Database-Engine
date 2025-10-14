@@ -147,9 +147,9 @@ void rollback_journal(int fdj,int fd){
         return;
     }
     
-    uint32_t checkMagic;
+    uint64_t checkMagic;
     // pread doesnt change current file pointer
-    ssize_t bytes_read = pread(fdj,&checkMagic,4,0);
+    ssize_t bytes_read = pread(fdj,&checkMagic,sizeof(MAGIC_NUMBER),0);
     if(bytes_read < 0) {
         cout << "Error reading from journal file" << endl;
         exit(EXIT_FAILURE);
@@ -166,7 +166,7 @@ void rollback_journal(int fdj,int fd){
         cout << "Error seeking to end of journal file" << endl;
         exit(EXIT_FAILURE);
     }
-    ssize_t bytes_read2 = read(fdj,&checkMagic,4);
+    ssize_t bytes_read2 = read(fdj,&checkMagic,sizeof(MAGIC_NUMBER));
     if(bytes_read2 < 0) {
         cout << "Error reading commit magic number" << endl;
         exit(EXIT_FAILURE);
