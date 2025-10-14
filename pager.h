@@ -82,7 +82,8 @@ struct Pager{
             memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *MAX_ROWS); 
             memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE_ROOT);
             node->trunkStart=rawPage.trunkStart;         
-            node->dirty=false;           
+            node->dirty=false; 
+            node->databaseVersion=rawPage.databaseVersion;          
             this->lruCache->put(1,node);
             return node;
         }

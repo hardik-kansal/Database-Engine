@@ -19,8 +19,8 @@ const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE
                                 - PAGE_HEADER_SIZE  
                                 - sizeof(RowSlot) * MAX_ROWS ;
 const uint16_t FREE_START_DEFAULT = PAGE_SIZE;
-const uint16_t MAX_PAYLOAD_SIZE_ROOT= MAX_PAYLOAD_SIZE-sizeof(uint32_t);// trunkstart
-const uint16_t FREE_START_DEFAULT_ROOT = PAGE_SIZE-sizeof(uint32_t);
+const uint16_t MAX_PAYLOAD_SIZE_ROOT= MAX_PAYLOAD_SIZE-2*sizeof(uint32_t);// trunkstart, datbaseVersioning
+const uint16_t FREE_START_DEFAULT_ROOT = PAGE_SIZE-2*sizeof(uint32_t);
 
 const uint16_t FREE_END_DEFAULT =PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
 // 56 or 0x3800 in little endian, each hex 4bits, 1 byte no endianess
@@ -106,6 +106,7 @@ struct RootPage {
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
     char payload[MAX_PAYLOAD_SIZE_ROOT];
     uint32_t trunkStart;
+    uint32_t databaseVersion;
 }__attribute__((packed));
 static_assert(sizeof(RootPage)== PAGE_SIZE, "RootPage SIZE MISMATCH");
 
@@ -119,6 +120,7 @@ struct RootPageNode {
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
     char payload[MAX_PAYLOAD_SIZE_ROOT];
     uint32_t trunkStart;
+    uint32_t databaseVersion;
     // till now ->pagesize
     bool dirty;
     bool inJournal;

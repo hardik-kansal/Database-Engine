@@ -254,7 +254,7 @@ void swapEndian(void* node,uint8_t* temp){
         if(GET_PAGE_NO(node,!reading)==1){
             swapPayload(node,temp,MAX_PAYLOAD_SIZE_ROOT);
             uint32_t trunkStart=__builtin_bswap32(GET_TRUNK_START(node,reading));
-            memcpy(temp+PAGE_SIZE-sizeof(uint32_t),&trunkStart,4);
+            memcpy(temp+PAGE_SIZE-2*sizeof(uint32_t),&trunkStart,4);
         }
         // pageNode
         else{
