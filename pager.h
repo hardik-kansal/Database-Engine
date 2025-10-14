@@ -11,6 +11,8 @@
 struct Pager{
 
     int file_descriptor;  // 4 bytes
+    int file_descriptor_journal;  // 4 bytes
+
     off_t file_length; // 8 bytes
     LRUCache* lruCache; // 8 bytes
     uint32_t numOfPages; // 4 bytes
@@ -21,8 +23,8 @@ struct Pager{
         if(page_no>this->numOfPages)return nullptr;
         if(this->lruCache->get(page_no)!=nullptr)return (pageNode*)this->lruCache->get(page_no);
         else{
-            off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
-            if(offset<0)exit(EXIT_FAILURE);
+            off_t success=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
+            if(success<0)exit(EXIT_FAILURE);
             Page rawPage{};
             ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
             if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
@@ -144,6 +146,14 @@ struct Pager{
         for(uint32_t i=0;i<count;i++){
             if (GET_PAGE_NO(tem->value,true)==1){this->writePage(tem->value);}
             else if(GET_DIRTY(tem->value,PAGE_SIZE+1)){this->writePage(tem->value);}
+            
+            // EACH Query or transaction once done needed to unmark 
+            // ELSE seperate queries will consider flushAgain or consider them in their journal.
+        
+            ((pageNode*)tem->value)->dirty=false;
+            ((pageNode*)tem->value)->inJournal=false;
+            // cast to any page type since inJournal is at same offset in all page type structs
+            
             tem=tem->next;
         }
     }
@@ -171,7 +181,7 @@ struct Pager{
         return value;
     }
 
-    void write_back_to_journal(void *page){
+    void write_back_to_journal(){
         return;
     }
 

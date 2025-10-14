@@ -3,6 +3,9 @@
 #include "btree.h"
 #include "utils.h"
 
+const char* filename_journal="f1-jn.db";
+const char* filename="f1.db";
+const uint32_t capacity=256;
 
 struct Table{
     Pager* pager;
@@ -68,7 +71,7 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
   }
 
 
-Pager* pager_open(const char* filename,const char* journal,uint32_t capacity) {
+Pager* pager_open() {
     int fd = open(filename,
                   O_RDWR |      // Read/Write mode
                       O_CREAT,  // Create file if it does not exist
@@ -80,23 +83,28 @@ Pager* pager_open(const char* filename,const char* journal,uint32_t capacity) {
       cout<<"UNABLE TO OPEN MAIN DB FILE"<<endl;
       exit(EXIT_FAILURE);
     }
-    int fd_journal = open(journal,
+    int fdj = open(filename_journal,
         O_RDWR |      // Read/Write mode
+            O_CREAT,  // Create file if it does not exist
         S_IWUSR |     // User write permission
             S_IRUSR   // User read permission
         );
-    if (fd_journal == -1) {
-            cout<<"JOURNAL DOES NOT EXIST"<<endl;
+
+    if (fdj == -1) {
+    cout<<"UNABLE TO CREATE/OPEN JOURNAL FILE  !!"<<endl;
+    exit(EXIT_FAILURE);
     }
     else{
         // rollback_journal(journal);
     }
+
   
     off_t file_length = lseek(fd, 0, SEEK_END);
   
     Pager* pager = new Pager();
     LRUCache* lru=new LRUCache(capacity);
     pager->file_descriptor = fd;
+    pager->file_descriptor_journal = fdj;
     pager->file_length = file_length;
     pager->lruCache=lru;
     uint32_t numOfPages=(pager->file_length)/PAGE_SIZE;
@@ -104,16 +112,50 @@ Pager* pager_open(const char* filename,const char* journal,uint32_t capacity) {
     return pager;
 }
 
-Table* create_db(const char* filename,const char* journal,uint32_t capacity){ // in c c++ string returns address, so either use string class or char* or char arr[]
+Table* create_db(){ // in c c++ string returns address, so either use string class or char* or char arr[]
       Table* table=new Table();
-      Pager* pager=pager_open(filename,journal,capacity);
+      Pager* pager=pager_open();
       Bplustrees* bplusTrees=new Bplustrees(pager);
       table->pager=pager;
       table->bplusTrees=bplusTrees;
       return table;
   }
-void close_db(Table* table) {
+
+
+void commit_journal(Table* table){
+    return;
+} 
+void create_journal(Table* table){
+
+    table->pager->write_back_to_journal();
+    int fdj=table->pager->file_descriptor_journal;
+    // fync retruns -1 on failing, if in c++ treates all values expect 0 as true
+    if(fsync(fdj)){
+        cout<<"FSYNC JOURNAL FAILED DURING PAGE WRITE !!"<<endl;
+        exit(EXIT_FAILURE);
+    }
+    commit_journal(table);
+    if(fsync(fdj)){
+        cout<<"FSYNC JOURNAL FAILED DURING COMMIT WRITE !!"<<endl;
+        exit(EXIT_FAILURE);
+    }
     table->pager->flushAll();
+    if(fsync(table->pager->file_descriptor)){
+        cout<<"FSYNC MAIN DB FAILED  !!"<<endl;
+        exit(EXIT_FAILURE);
+    }
+    off_t success=lseek(fdj,0,SEEK_SET);
+    if(success<0)exit(EXIT_FAILURE);
+    // ssize_t bytesWritten=write(fdj)
+
+    // REMOVES FROM FILESYSTEM BUT DOESNT CLOSE IT OR FREE UP RESOURCES.
+    unlink(filename_journal);
+}
+
+
+void close_db(Table* table){
+    close(table->pager->file_descriptor);
+    close(table->pager->file_descriptor_journal);
 }
 
 MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
@@ -125,7 +167,7 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
         return META_BEGIN_TRANS;
     }
     else if (strcmp(input_buffer->buffer,".c")){
-        // commit_journal();
+        create_journal(table);
         return META_COMMIT_SUCCESS;
     }
     else {
@@ -135,6 +177,9 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
 
 executeResult execute_insert(Statement* statement, Table* table,bool COMMIT_NOW) {
     table->bplusTrees->insert(statement->row.key, statement->row.payload);
+    if(COMMIT_NOW){
+        create_journal(table);
+    }
     return EXECUTE_SUCCESS;
 }
 
@@ -149,6 +194,7 @@ executeResult execute_select_id(Statement* statement, Table* table) {
 
 executeResult execute_delete(Statement* statement, Table* table,bool COMMIT_NOW) {
     bool deleted = table->bplusTrees->deleteKey(statement->row.key);
+    if(COMMIT_NOW)create_journal(table);
     if (deleted) {
         cout << "Key " << statement->row.key<< " success" << endl;
     } else {
@@ -179,8 +225,7 @@ executeResult execute_statement(Statement* statement, Table* table,bool COMMIT_N
 
 int main(){
     bool COMMIT_NOW=true;
-    const uint32_t capacity=256;
-    Table * table= create_db("f1.db","f1-jn.db",capacity);
+    Table * table= create_db();
     while (true){
 
         InputBuffer* inputBuffer=createEmptyBuffer();
