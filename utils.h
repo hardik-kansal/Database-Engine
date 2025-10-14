@@ -106,6 +106,16 @@ static inline uint32_t GET_ROW_COUNT_TRUNK(void* ptr, bool returnAsIs) {
 
 static inline uint32_t GET_TRUNK_START(void* ptr, bool returnAsIs) {
     uint32_t val;
+    memcpy(&val, (uint8_t*)ptr + PAGE_SIZE - 3*sizeof(uint32_t), sizeof(uint32_t));
+    return returnAsIs ? val : __builtin_bswap32(val);
+}
+static inline uint32_t GET_DATABASE_VER(void* ptr, bool returnAsIs) {
+    uint32_t val;
+    memcpy(&val, (uint8_t*)ptr + PAGE_SIZE - 2*sizeof(uint32_t), sizeof(uint32_t));
+    return returnAsIs ? val : __builtin_bswap32(val);
+}
+static inline uint32_t GET_NO_OF_PAGES(void* ptr, bool returnAsIs) {
+    uint32_t val;
     memcpy(&val, (uint8_t*)ptr + PAGE_SIZE - sizeof(uint32_t), sizeof(uint32_t));
     return returnAsIs ? val : __builtin_bswap32(val);
 }
@@ -255,6 +265,10 @@ void swapEndian(void* node,uint8_t* temp){
             swapPayload(node,temp,MAX_PAYLOAD_SIZE_ROOT);
             uint32_t trunkStart=__builtin_bswap32(GET_TRUNK_START(node,reading));
             memcpy(temp+PAGE_SIZE-TRUNK_START_BACK_SIZE,&trunkStart,4);
+            uint32_t databaseVersion=__builtin_bswap32(GET_DATABASE_VER(node,reading));
+            memcpy(temp+PAGE_SIZE-DATABASE_VER_BACK_SIZE,&databaseVersion,4);
+            uint32_t numOfPages=__builtin_bswap32(GET_NO_OF_PAGES(node,reading));
+            memcpy(temp+PAGE_SIZE-NO_OF_PAGES_BACK_SIZE,&numOfPages,4);
         }
         // pageNode
         else{

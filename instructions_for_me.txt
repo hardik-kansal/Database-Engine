@@ -1,0 +1,9 @@
+how to add new header detail in rootPage?
+- add at last in structs.h
+    - update ROOT_BACK_HEADER_SIZE 
+    - add const BACK_SIZE reaching to it
+
+dont change relative order, keep dirty,journal at offset PAGE_SIZE,PAGE_SIZE+1 only.
+
+- update pager.h
+    - update getRootPage()

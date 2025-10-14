@@ -1,0 +1,25 @@
+rm -f f1.db && rm -f f1-jn.db && g++ -o dbms main.cpp -lz
+./dbms <<EOF
+.bt
+i 8 2
+i 9 2
+i 15 3
+i 1 1
+i 2 1s
+i 3 1
+i 19 3
+i 10 2
+i 11 2
+i 12 2
+i 13 3
+i 14 3
+i 4 1
+.c
+s*
+.exit
+EOF
+
+./dbms
+i 5 h
+s*
+.exit

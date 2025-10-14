@@ -220,15 +220,12 @@ Pager* pager_open() {
         exit(EXIT_FAILURE);
     }
   
-    off_t file_length = lseek(fd, 0, SEEK_END);
   
     Pager* pager = new Pager();
     LRUCache* lru=new LRUCache(capacity);
     pager->file_descriptor = fd;
     pager->file_descriptor_journal = fdj;
     pager->lruCache=lru;
-    uint32_t numOfPages=file_length/PAGE_SIZE;
-    pager->numOfPages=numOfPages;
     return pager;
 }
 

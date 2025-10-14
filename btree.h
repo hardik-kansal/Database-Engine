@@ -29,7 +29,8 @@ class Bplustrees{
                 this->root->freeStart=FREE_START_DEFAULT_ROOT;
                 this->root->freeEnd=FREE_END_DEFAULT;
                 this->root->trunkStart=1;
-                pager->numOfPages=1;
+                this->root->numOfPages=1;
+                this->root->databaseVersion=0;
             } else {
                 this->root = rootPage;
             }
@@ -86,12 +87,19 @@ class Bplustrees{
         void printTree() {
             printRootNode(root);
             queue<pageNode*> q;
+            set<uint32_t> visited; // Track visited page numbers to prevent cycles
             q.push(nullptr);
             bool check=root->type==PAGE_TYPE_LEAF;
             uint16_t len=(!check)?root->rowCount+1: root->rowCount;
             for (uint16_t i=0;i<len;i++) {
                 uint32_t page_no=pager->getPageNoPayload(root,i);
-                if(!check && page_no!=0)q.push(pager->getPage(page_no));
+                if(!check && page_no!=0 && visited.find(page_no) == visited.end()) {
+                    pageNode* node = pager->getPage(page_no);
+                    if(node != nullptr) {
+                        q.push(node);
+                        visited.insert(page_no);
+                    }
+                }
             }           
             while (!q.empty()) {
                 pageNode* node = q.front();
@@ -105,15 +113,31 @@ class Bplustrees{
                     uint16_t len=(!check)?node->rowCount+1: node->rowCount;
                     for (uint16_t i=0;i<len;i++) {
                         uint32_t page_no=pager->getPageNoPayload(node,i);
-                        if(!check && page_no!=0)q.push(pager->getPage(page_no));
+                        if(!check && page_no!=0 && visited.find(page_no) == visited.end()) {
+                            pageNode* child = pager->getPage(page_no);
+                            if(child != nullptr) {
+                                q.push(child);
+                                visited.insert(page_no);
+                            }
+                        }
                     }
                 }
             }
         }
         // cant use root->trunkStart bz in insertintointernal, root data is changed but page_no is still 1
         uint32_t new_page_no(){
-            if(trunkStart==1)return ++pager->numOfPages;
+            if(trunkStart==1){
+                this->root->numOfPages++;
+                return this->root->numOfPages;
+            }
             TrunkPageNode* node=pager->getTrunkPage(trunkStart);
+            if(node == nullptr){
+                // Invalid trunk page, reset to default
+                trunkStart = 1;
+                this->root->trunkStart = 1;
+                this->root->numOfPages++;
+                return this->root->numOfPages;
+            }
             if(node->rowCount==0){
                 root->trunkStart=node->prevTrunkPage;
                 trunkStart=root->trunkStart;
@@ -130,10 +154,14 @@ class Bplustrees{
             // Navigate to the appropriate leaf page
             while (curr->type != PAGE_TYPE_LEAF) {
                 uint16_t idx = ub(curr->slots, curr->rowCount, key);
-                curr = pager->getPage(pager->getPageNoPayload(curr, idx));
+                pageNode* next = pager->getPage(pager->getPageNoPayload(curr, idx));
+                if(next == nullptr) {
+                    cout << "ERROR: Failed to get page during insert traversal" << endl;
+                    return;
+                }
+                curr = next;
                 // getPage make sure to put into lrucache
                 path.push_back(curr);
-
             }
             // Check if key already exists
             uint16_t idx = lb(curr->slots, curr->rowCount, key);
@@ -191,7 +219,7 @@ class Bplustrees{
             uint16_t len=(leaf->pageNumber==1)? (MAX_PAYLOAD_SIZE_ROOT) : MAX_PAYLOAD_SIZE;
             char* buff=new char[len];
             memcpy(buff,leaf->payload,len);
-            uint16_t offset=FREE_START_DEFAULT;
+            uint16_t offset=(leaf->pageNumber==1)? FREE_START_DEFAULT_ROOT:FREE_START_DEFAULT;
             for(uint16_t i = 0; i < leaf->rowCount; i++){
                 uint16_t oldOffset=leaf->slots[i].offset;
                 uint16_t length=leaf->slots[i].length;
@@ -218,17 +246,11 @@ class Bplustrees{
             
             // Insert the new row in the appropriate page
             if (index < splitIndex) {
-// this means leaf have new element, so moving rows will be different.
-            moveRowsToNewLeaf(leaf, newLeaf, splitIndex-1);
-            insertRowAt(leaf, index, key, payload, payloadLength);
-
-
-
-                }
-             else {
+                moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
+                insertRowAt(leaf, index, key, payload, payloadLength);
+            } else {
                 moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
                 insertRowAt(newLeaf, index-splitIndex, key, payload, payloadLength);
-
             }
             defragLeaf(leaf);
             // Update parent or create new root
@@ -294,8 +316,8 @@ class Bplustrees{
             // Copy payloads (use offsets/lengths from the moved range)
             uint32_t newPayloadOffset = FREE_START_DEFAULT; // newLeaf is always a normal page
             for (uint16_t i = 0; i < rowsToMove; i++) {
-                uint32_t oldOffset = oldLeaf->slots[i + splitIndex].offset;
-                uint32_t length    = oldLeaf->slots[i + splitIndex].length;
+                uint32_t oldOffset = newLeaf->slots[i].offset;
+                uint32_t length    = newLeaf->slots[i].length;
                 
                 memcpy(((char*)newLeaf) + newPayloadOffset - length, ((char*)oldLeaf) + oldOffset, length);
                 newLeaf->slots[i].offset = newPayloadOffset - length;
@@ -329,6 +351,14 @@ class Bplustrees{
             
             newRoot->freeStart = newRoot->freeStart - 2* sizeof(uint32_t);
             newRoot->trunkStart=trunkStart;
+            newRoot->numOfPages=root->numOfPages;
+            newRoot->databaseVersion=root->databaseVersion;
+            
+            // Clean up old root if it's not the same as leftChild
+            if (root != (RootPageNode*)leftChild) {
+                delete root;
+            }
+            
             pager->lruCache->put(newRoot->pageNumber, newRoot);
             root = newRoot;
         }

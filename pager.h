@@ -13,12 +13,13 @@ struct Pager{
     int file_descriptor_journal;  // 4 bytes
 
     LRUCache* lruCache; // 8 bytes
-    uint32_t numOfPages; // 4 bytes
 
 
     // off_t long long int
     pageNode* getPage(uint32_t page_no){
-        if(page_no>this->numOfPages)return nullptr;
+        if(page_no == 0) return nullptr;
+        RootPageNode* rootPage = this->getRootPage();
+        if(rootPage == nullptr || page_no > rootPage->numOfPages)return nullptr;
         if(this->lruCache->get(page_no)!=nullptr)return (pageNode*)this->lruCache->get(page_no);
         else{
             off_t success=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
@@ -54,7 +55,6 @@ struct Pager{
 
     RootPageNode* getRootPage(){
         uint32_t page_no=1;
-        if(page_no>this->numOfPages)return nullptr;
         if(this->lruCache->get(page_no)!=nullptr)return (RootPageNode*)this->lruCache->get(page_no);
         else{
             off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
@@ -73,6 +73,7 @@ struct Pager{
             }
             
             RootPageNode* node = new RootPageNode();
+            if(page_no!=rawPage.pageNumber)return nullptr;
             node->pageNumber = rawPage.pageNumber;
             node->type = static_cast<PageType>(rawPage.type); 
             // c++ stores in file as 0,1 on retrieving error if not typecast.
@@ -83,13 +84,15 @@ struct Pager{
             memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE_ROOT);
             node->trunkStart=rawPage.trunkStart;         
             node->dirty=false; 
-            node->databaseVersion=rawPage.databaseVersion;          
+            node->databaseVersion=rawPage.databaseVersion;  
+            node->numOfPages=rawPage.numOfPages;        
             this->lruCache->put(1,node);
             return node;
         }
     }
     TrunkPageNode* getTrunkPage(uint32_t page_no){
-        if(page_no>this->numOfPages)return nullptr;
+        RootPageNode* rootPage = this->getRootPage();
+        if(rootPage == nullptr || page_no > rootPage->numOfPages) return nullptr;
         if(this->lruCache->get(page_no)!=nullptr)return (TrunkPageNode*)this->lruCache->get(page_no);
         else{
             off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
@@ -168,6 +171,7 @@ struct Pager{
     }
     // index id 0 based and gives corresponding pageNo.
     uint32_t getPageNoPayload(void* curr,uint16_t index){
+        if(curr == nullptr) return 0;
         uint32_t value;
         if(index<((pageNode*)curr)->rowCount){
         if(GET_PAGE_NO(curr,true)==1)memcpy(&value, ((char*)curr) + ((RootPageNode*)curr)->slots[index].offset, sizeof(uint32_t));  
@@ -186,7 +190,7 @@ struct Pager{
         int fd=this->file_descriptor;
         if(lseek(fd,0,SEEK_SET)<0){exit(EXIT_FAILURE);}
         uint32_t numOfPages=1;
-        if(read(fd,&numOfPages,4)<0 && this->numOfPages>1){
+        if(read(fd,&numOfPages,4)<0 && this->getRootPage()->numOfPages>1){
             exit(EXIT_FAILURE);
         }
 
