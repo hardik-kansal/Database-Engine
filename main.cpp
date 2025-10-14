@@ -73,6 +73,69 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
 
 
 void flushAll_journal(int fdj,int fd){
+    // Read rollback header (sector aligned)
+    off_t file_size = lseek(fdj, 0, SEEK_END);
+    if(file_size <= 0) return;
+
+    // Compute padded header size
+    size_t total_header_len = ROLLBACK_HEADER_SIZE;
+    size_t padded_header_len = ((total_header_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+
+    // Safety check
+    if((off_t)padded_header_len > file_size) return;
+
+    rollback_header header;
+    if(lseek(fdj, 0, SEEK_SET) < 0) { exit(EXIT_FAILURE); }
+    // We can read header directly; it's at the start
+    if(read(fdj, &header, sizeof(header)) < 0) { exit(EXIT_FAILURE); }
+    if(header.magicNumber != magicNumber) {
+        // Not a valid journal
+        return;
+    }
+
+    
+    off_t offset = padded_header_len;
+    while(offset + (off_t)8 <= file_size) {
+        // Ensure enough for at least one record header (PAGE + 4 checksum)
+        if(offset + (off_t)(PAGE_SIZE + sizeof(uint32_t)) > file_size - 8) break;
+
+        uint8_t pagebuf[PAGE_SIZE];
+        uint32_t stored_cksum = 0;
+
+        if(pread(fdj, pagebuf, PAGE_SIZE, offset) < 0) { exit(EXIT_FAILURE); }
+        if(pread(fdj, &stored_cksum, sizeof(stored_cksum), offset + PAGE_SIZE) < 0) { exit(EXIT_FAILURE); }
+
+        // Verify checksum
+        uint32_t calc = crc32_with_salt(pagebuf, PAGE_SIZE, 0 + header.salt1, header.salt2);
+        if(calc != stored_cksum) {
+            cout << "Journal checksum mismatch, aborting rollback" << endl;
+            exit(EXIT_FAILURE);
+        }
+
+     
+        uint32_t page_no = GET_PAGE_NO(pagebuf, true);
+        if(page_no == 0) {
+            cout << "Invalid page number in journal" << endl;
+            exit(EXIT_FAILURE);
+        }
+
+        off_t db_off = (off_t)(page_no - 1) * PAGE_SIZE;
+
+        
+        if(ifLe) {
+            if(pwrite(fd, pagebuf, PAGE_SIZE, db_off) < 0) { cout<<"ERROR WRITING"<<endl; exit(EXIT_FAILURE); }
+        } else {
+            reading = false;
+            uint8_t temp[PAGE_SIZE];
+            swapEndian(pagebuf, temp);
+            if(pwrite(fd, temp, PAGE_SIZE, db_off) < 0) { cout<<"ERROR WRITING"<<endl; exit(EXIT_FAILURE); }
+        }
+
+        // Advance to next sector-aligned record
+        size_t rec_total = PAGE_SIZE + sizeof(uint32_t);
+        size_t rec_padded = ((rec_total + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+        offset += rec_padded;
+    }
     return;   
 }
 
@@ -109,7 +172,7 @@ void rollback_journal(int fdj,int fd){
         exit(EXIT_FAILURE);
     }
     if(checkMagic!=magicNumber){
-        cout<<"COMMIT different: "<<checkMagic<<endl;
+        cout<<"COMMIT MSG different FROM MagicNumber: "<<checkMagic<<endl;
         return;
     }
     cout<<"writing back orginal pages to main db.."<<endl;
@@ -190,24 +253,30 @@ void create_journal(Table* table){
         cout<<"FSYNC JOURNAL FAILED DURING PAGE WRITE !!"<<endl;
         exit(EXIT_FAILURE);
     }
+    // cout<<"FAILLING BEFORE COMMIT !"<<endl;exit(EXIT_FAILURE);
     commit_journal(fdj);
     if(fsync(fdj)){
         cout<<"FSYNC JOURNAL FAILED DURING COMMIT WRITE !!"<<endl;
         exit(EXIT_FAILURE);
     }
+    // cout<<"FAILLING BEFORE FLUSHING MAIN DB !"<<endl;exit(EXIT_FAILURE);
     table->pager->flushAll();
     if(fsync(table->pager->file_descriptor)){
         cout<<"FSYNC MAIN DB FAILED  !!"<<endl;
         exit(EXIT_FAILURE);
     }
+    // cout<<"FAILLING BEFORE CORRUPTING MAGIC NUMBER !"<<endl;exit(EXIT_FAILURE);
 
     if(lseek(fdj,0,SEEK_SET)<0)exit(EXIT_FAILURE);
     uint64_t corruptedMagicNumber=0;
     if(write(fdj,&corruptedMagicNumber,8)<0)exit(EXIT_FAILURE);
 
+    // cout<<"FAILLING BEFORE UNLINK !"<<endl;exit(EXIT_FAILURE);
+
     // REMOVES FROM FILESYSTEM BUT DOESNT CLOSE IT OR FREE UP RESOURCES.
-    cout<<"unlink"<<endl;
     unlink(filename_journal);
+    cout<<"FAILLING AFTER UNLINK !"<<endl;exit(EXIT_FAILURE);
+
 }
 
 
