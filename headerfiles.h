@@ -9,7 +9,7 @@
 #include <fcntl.h> //open(), O_CREAT
 #include "enums.h"
 #include <zlib.h>
-const uint64_t magicNumber=16102004;
+const uint64_t MAGIC_NUMBER=16102004;
 
 using namespace std;
 

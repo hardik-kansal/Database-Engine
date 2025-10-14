@@ -190,7 +190,7 @@ struct Pager{
         }
 
         rollback_header header;
-        header.magicNumber=magicNumber;
+        header.magicNumber=MAGIC_NUMBER;
         header.numOfPages=numOfPages;
         header.salt1=0; // for database versioning
         header.salt2=random_u32(); // for checksum
@@ -207,6 +207,7 @@ struct Pager{
 
         this->lruCache->salt1=header.salt1;
         this->lruCache->salt2=header.salt2;
+        this->lruCache->checkMagic=MAGIC_NUMBER;
         
     }
     void write_page_with_checksum(void* page) {
@@ -230,13 +231,7 @@ struct Pager{
     }
 
     void write_back_to_journal(void* page){
-        int fdj=this->file_descriptor_journal;
-        if(lseek(fdj,0,SEEK_SET)<0){
-            exit(EXIT_FAILURE);
-        }
-        uint64_t magicNumber;
-        if(read(fdj,&magicNumber,8)<0){exit(EXIT_FAILURE);}
-        if(magicNumber!=16102004){
+        if(this->lruCache->checkMagic!=MAGIC_NUMBER){
             write_back_header_to_journal();
         }
         write_page_with_checksum(page);        

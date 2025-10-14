@@ -88,7 +88,7 @@ void flushAll_journal(int fdj,int fd){
     if(lseek(fdj, 0, SEEK_SET) < 0) { exit(EXIT_FAILURE); }
     // We can read header directly; it's at the start
     if(read(fdj, &header, sizeof(header)) < 0) { exit(EXIT_FAILURE); }
-    if(header.magicNumber != magicNumber) {
+    if(header.magicNumber != MAGIC_NUMBER) {
         // Not a valid journal
         return;
     }
@@ -154,7 +154,7 @@ void rollback_journal(int fdj,int fd){
         cout << "Error reading from journal file" << endl;
         exit(EXIT_FAILURE);
     }
-    if(checkMagic!=magicNumber){
+    if(checkMagic!=MAGIC_NUMBER){
         cout<<"MAGIC_NUMBER different: "<<checkMagic<<endl;
         return;
     }
@@ -171,7 +171,7 @@ void rollback_journal(int fdj,int fd){
         cout << "Error reading commit magic number" << endl;
         exit(EXIT_FAILURE);
     }
-    if(checkMagic!=magicNumber){
+    if(checkMagic!=MAGIC_NUMBER){
         cout<<"COMMIT MSG different FROM MagicNumber: "<<checkMagic<<endl;
         return;
     }
@@ -244,7 +244,7 @@ Table* create_db(){ // in c c++ string returns address, so either use string cla
 
 void commit_journal(int fdj){
     if(lseek(fdj,0,SEEK_END)<0)exit(EXIT_FAILURE);
-    if(write(fdj,&magicNumber,8)<0)exit(EXIT_FAILURE);
+    if(write(fdj,&MAGIC_NUMBER,8)<0)exit(EXIT_FAILURE);
 } 
 void create_journal(Table* table){
     int fdj=table->pager->file_descriptor_journal;
@@ -267,15 +267,17 @@ void create_journal(Table* table){
     }
     // cout<<"FAILLING BEFORE CORRUPTING MAGIC NUMBER !"<<endl;exit(EXIT_FAILURE);
 
+    // make journal invalid
     if(lseek(fdj,0,SEEK_SET)<0)exit(EXIT_FAILURE);
     uint64_t corruptedMagicNumber=0;
     if(write(fdj,&corruptedMagicNumber,8)<0)exit(EXIT_FAILURE);
-
+    table->pager->lruCache->checkMagic=corruptedMagicNumber;
+    
     // cout<<"FAILLING BEFORE UNLINK !"<<endl;exit(EXIT_FAILURE);
 
     // REMOVES FROM FILESYSTEM BUT DOESNT CLOSE IT OR FREE UP RESOURCES.
     unlink(filename_journal);
-    cout<<"FAILLING AFTER UNLINK !"<<endl;exit(EXIT_FAILURE);
+    // cout<<"FAILLING AFTER UNLINK !"<<endl;exit(EXIT_FAILURE);
 
 }
 
@@ -304,7 +306,7 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
 
 executeResult execute_insert(Statement* statement, Table* table,bool COMMIT_NOW) {
     table->bplusTrees->insert(statement->row.key, statement->row.payload);
-    cout<<"COMMIT_NOW: "<<COMMIT_NOW<<endl;
+    // cout<<"COMMIT_NOW: "<<COMMIT_NOW<<endl;
     if(COMMIT_NOW){
         create_journal(table);
     }

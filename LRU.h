@@ -29,6 +29,8 @@ public:
         Node* tail;
         uint32_t salt1;
         uint32_t salt2;
+        uint32_t checkMagic;
+
 
         void insertStart(Node* newNode){
                     newNode->prev=head;
