@@ -95,24 +95,6 @@ d 29
 EOF
 
 
-rm -f f1.db && rm -f f1-jn.db && g++ -o dbms main.cpp -lz
-./dbms <<EOF
-.bt
-i 8 2
-i 9 2
-.c
-.exit
-EOF
-
-
-rm -f f1.db && rm -f f1-jn.db && g++ -o dbms main.cpp -lz
-./dbms <<EOF
-.bt
-d 8 
-d 9 
-.c
-.exit
-EOF
 
 
 

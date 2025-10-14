@@ -19,10 +19,18 @@ const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE
                                 - PAGE_HEADER_SIZE  
                                 - sizeof(RowSlot) * MAX_ROWS ;
 const uint16_t FREE_START_DEFAULT = PAGE_SIZE;
-const uint16_t MAX_PAYLOAD_SIZE_ROOT= MAX_PAYLOAD_SIZE-2*sizeof(uint32_t);// trunkstart, datbaseVersioning
-const uint16_t FREE_START_DEFAULT_ROOT = PAGE_SIZE-2*sizeof(uint32_t);
+// trunkstart, datbaseVersioning
+const uint16_t ROOT_BACK_HEADER_SIZE=2*sizeof(uint32_t);
+const uint16_t TRUNK_START_BACK_SIZE=ROOT_BACK_HEADER_SIZE;
+const uint16_t MAX_PAYLOAD_SIZE_ROOT= PAGE_SIZE 
+                                - PAGE_HEADER_SIZE  
+                                - sizeof(RowSlot) * MAX_ROWS 
+                                - ROOT_BACK_HEADER_SIZE ;
 
-const uint16_t FREE_END_DEFAULT =PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
+
+const uint16_t FREE_START_DEFAULT_ROOT = PAGE_SIZE-ROOT_BACK_HEADER_SIZE;
+
+const uint16_t FREE_END_DEFAULT = PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
 // 56 or 0x3800 in little endian, each hex 4bits, 1 byte no endianess
 const uint16_t NO_OF_TPAGES=(PAGE_SIZE-16)/4;
 

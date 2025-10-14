@@ -887,10 +887,9 @@ class Bplustrees{
 
             uint32_t parentIndex_lcpageNumber=pager->getPageNoPayload(parent,0);
 
-            // since root payload starts from PAGE_SIZE -2*sizeof(uint32_t) ->trunkStart
             if (parent->pageNumber==1 && parent->rowCount == 0) {
                 uint32_t page_no=leftInternal->pageNumber;
-                root->freeStart=leftInternal->freeStart-2*sizeof(uint32_t);
+                root->freeStart=leftInternal->freeStart-ROOT_BACK_HEADER_SIZE;
                 memcpy(root->slots,leftInternal->slots,sizeof(RowSlot)*(leftInternal->rowCount));
                 memcpy(((char*)root)+root->freeStart,((char*)leftInternal)+leftInternal->freeStart,PAGE_SIZE-leftInternal->freeStart);
                 root->pageNumber=1;
@@ -898,7 +897,7 @@ class Bplustrees{
                 root->trunkStart=trunkStart;
                 root->type=PAGE_TYPE_INTERIOR;
                 for(uint16_t i=0;i<leftInternal->rowCount;i++){
-                    root->slots[i].offset-=2*sizeof(uint32_t);
+                    root->slots[i].offset-=ROOT_BACK_HEADER_SIZE;
                 }
                 freePage(page_no);
                 
