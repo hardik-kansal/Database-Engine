@@ -44,8 +44,9 @@ struct pageNode {
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
     char payload[MAX_PAYLOAD_SIZE];
     bool dirty;
+    bool inJournal;
 }__attribute__((packed));
-static_assert(sizeof(pageNode)== PAGE_SIZE+1, "pageNode SIZE MISMATCH");
+static_assert(sizeof(pageNode)== PAGE_SIZE+2, "pageNode SIZE MISMATCH");
 
 
 struct Row_schema{
@@ -88,8 +89,9 @@ struct TrunkPageNode {
     uint32_t prevTrunkPage; //4 
     uint32_t tPages[NO_OF_TPAGES]; 
     bool dirty;
+    bool inJournal;
 }__attribute__((packed));
-static_assert(sizeof(TrunkPageNode)== PAGE_SIZE+1, "TrunkPageNode SIZE MISMATCH");
+static_assert(sizeof(TrunkPageNode)== PAGE_SIZE+2, "TrunkPageNode SIZE MISMATCH");
 
 
 
@@ -117,12 +119,13 @@ struct RootPageNode {
     uint32_t trunkStart;
     // till now ->pagesize
     bool dirty;
+    bool inJournal;
 }__attribute__((packed));
-static_assert(sizeof(RootPageNode)== PAGE_SIZE+1, "RootPageNode SIZE MISMATCH");
+static_assert(sizeof(RootPageNode)== PAGE_SIZE+2, "RootPageNode SIZE MISMATCH");
 
 
 
 // All equivalent nodes have same size, else disk pages and in memory pages would differ.
-// bool dirty must be at last and at offset PAGE_SIZE 
+// bool dirty must be  at offset PAGE_SIZE 
 
 #endif

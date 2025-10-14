@@ -68,7 +68,7 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
   }
 
 
-Pager* pager_open(const char* filename,uint32_t capacity) {
+Pager* pager_open(const char* filename,const char* journal,uint32_t capacity) {
     int fd = open(filename,
                   O_RDWR |      // Read/Write mode
                       O_CREAT,  // Create file if it does not exist
@@ -77,8 +77,19 @@ Pager* pager_open(const char* filename,uint32_t capacity) {
                   );
   
     if (fd == -1) {
-      cout<<"UNABLE TO OPEN FILE"<<endl;
+      cout<<"UNABLE TO OPEN MAIN DB FILE"<<endl;
       exit(EXIT_FAILURE);
+    }
+    int fd_journal = open(journal,
+        O_RDWR |      // Read/Write mode
+        S_IWUSR |     // User write permission
+            S_IRUSR   // User read permission
+        );
+    if (fd_journal == -1) {
+            cout<<"JOURNAL DOES NOT EXIST"<<endl;
+    }
+    else{
+        // rollback_journal(journal);
     }
   
     off_t file_length = lseek(fd, 0, SEEK_END);
@@ -93,9 +104,9 @@ Pager* pager_open(const char* filename,uint32_t capacity) {
     return pager;
 }
 
-Table* create_db(const char* filename,uint32_t capacity){ // in c c++ string returns address, so either use string class or char* or char arr[]
+Table* create_db(const char* filename,const char* journal,uint32_t capacity){ // in c c++ string returns address, so either use string class or char* or char arr[]
       Table* table=new Table();
-      Pager* pager=pager_open(filename,capacity);
+      Pager* pager=pager_open(filename,journal,capacity);
       Bplustrees* bplusTrees=new Bplustrees(pager);
       table->pager=pager;
       table->bplusTrees=bplusTrees;
@@ -110,12 +121,19 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
         close_db(table);
         exit(EXIT_SUCCESS);
     }
+    else if (strcmp(input_buffer->buffer,".bt")){
+        return META_BEGIN_TRANS;
+    }
+    else if (strcmp(input_buffer->buffer,".c")){
+        // commit_journal();
+        return META_COMMIT_SUCCESS;
+    }
     else {
         return META_COMMAND_UNRECOGNIZED_COMMAND;
     }
 }
 
-executeResult execute_insert(Statement* statement, Table* table) {
+executeResult execute_insert(Statement* statement, Table* table,bool COMMIT_NOW) {
     table->bplusTrees->insert(statement->row.key, statement->row.payload);
     return EXECUTE_SUCCESS;
 }
@@ -129,7 +147,7 @@ executeResult execute_select_id(Statement* statement, Table* table) {
     return EXECUTE_SUCCESS;
 }
 
-executeResult execute_delete(Statement* statement, Table* table) {
+executeResult execute_delete(Statement* statement, Table* table,bool COMMIT_NOW) {
     bool deleted = table->bplusTrees->deleteKey(statement->row.key);
     if (deleted) {
         cout << "Key " << statement->row.key<< " success" << endl;
@@ -139,16 +157,16 @@ executeResult execute_delete(Statement* statement, Table* table) {
     return EXECUTE_SUCCESS;
 }
 
-executeResult execute_statement(Statement* statement, Table* table) {
+executeResult execute_statement(Statement* statement, Table* table,bool COMMIT_NOW) {
     switch (statement->type) {
         case (STATEMENT_INSERT):
-            return execute_insert(statement, table);
+            return execute_insert(statement, table,COMMIT_NOW);
         case (STATEMENT_SELECT):
             return execute_select(statement, table);
         case (STATEMENT_SELECT_ID):
             return execute_select_id(statement, table);
         case (STATEMENT_DELETE):
-            return execute_delete(statement, table);
+            return execute_delete(statement, table,COMMIT_NOW);
         
     }
     return EXECUTE_SUCCESS;
@@ -160,9 +178,9 @@ executeResult execute_statement(Statement* statement, Table* table) {
 
 
 int main(){
+    bool COMMIT_NOW=true;
     const uint32_t capacity=256;
-    Table * table= create_db("f1.db",capacity);
-
+    Table * table= create_db("f1.db","f1-jn.db",capacity);
     while (true){
 
         InputBuffer* inputBuffer=createEmptyBuffer();
@@ -173,6 +191,12 @@ int main(){
                 case META_COMMAND_UNRECOGNIZED_COMMAND:
                     cout<<"META_COMMAND_UNRECOGNIZED_COMMAND"<<endl;
                     exit(EXIT_FAILURE);
+                case META_BEGIN_TRANS:
+                    COMMIT_NOW=false;
+                    continue;
+                case META_COMMIT_SUCCESS:
+                    COMMIT_NOW=true;
+                    continue;
                 case META_COMMAND_SUCCESS:
                     continue;
             }
@@ -186,7 +210,7 @@ int main(){
             case PREPARE_SUCCESS:
                 break;
         }
-        switch(execute_statement(statement,table)){
+        switch(execute_statement(statement,table,COMMIT_NOW)){
             case EXECUTE_SUCCESS:
                 cout<<" :success"<<endl;
                 break;
@@ -201,7 +225,6 @@ int main(){
         }
         delete inputBuffer;
         delete statement;
-        
     }
     return 0;
 }

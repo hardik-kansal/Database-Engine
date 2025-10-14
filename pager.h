@@ -171,6 +171,10 @@ struct Pager{
         return value;
     }
 
+    void write_back_to_journal(void *page){
+        return;
+    }
+
  };
 
 
