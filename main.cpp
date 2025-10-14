@@ -3,6 +3,7 @@
 #include "btree.h"
 #include "utils.h"
 
+// .db is just a naming convention
 const char* filename_journal="f1-jn.db";
 const char* filename="f1.db";
 const uint32_t capacity=256;
@@ -76,15 +77,37 @@ void flushAll_journal(int fdj,int fd){
 }
 
 void rollback_journal(int fdj,int fd){
+    // Check if journal file is empty or too small
+    off_t file_size = lseek(fdj, 0, SEEK_END);
+    if(file_size < 4) {
+        cout<<"Journal file is empty or too small, skipping rollback"<<endl;
+        return;
+    }
+    
     uint32_t checkMagic;
     // pread doesnt change current file pointer
-    if(pread(fdj,&checkMagic,4,0))exit(EXIT_FAILURE);
+    ssize_t bytes_read = pread(fdj,&checkMagic,4,0);
+    if(bytes_read < 0) {
+        cout << "Error reading from journal file" << endl;
+        exit(EXIT_FAILURE);
+    }
     if(checkMagic!=magicNumber){
         cout<<"MAGIC_NUMBER different: "<<checkMagic<<endl;
         return;
     }
-    if(lseek(fdj,-8,SEEK_END))exit(EXIT_FAILURE);
-    if(read(fdj,&checkMagic,4))exit(EXIT_FAILURE);
+    if(file_size < 8) {
+        cout << "Journal file too small for commit check, skipping" << endl;
+        return;
+    }
+    if(lseek(fdj,-8,SEEK_END)<0) {
+        cout << "Error seeking to end of journal file" << endl;
+        exit(EXIT_FAILURE);
+    }
+    ssize_t bytes_read2 = read(fdj,&checkMagic,4);
+    if(bytes_read2 < 0) {
+        cout << "Error reading commit magic number" << endl;
+        exit(EXIT_FAILURE);
+    }
     if(checkMagic!=magicNumber){
         cout<<"COMMIT different: "<<checkMagic<<endl;
         return;
@@ -109,21 +132,30 @@ Pager* pager_open() {
       cout<<"UNABLE TO OPEN MAIN DB FILE"<<endl;
       exit(EXIT_FAILURE);
     }
-    int fdj = open(filename_journal,
+    int fdj;
+    if (access(filename_journal,F_OK)<0) {
+    cout<<"JOURNAL FILE DOES NOT EXIST .."<<endl;
+    }
+    else{
+        fdj = open(filename_journal,
+            O_RDWR |      // Read/Write mode
+            O_CREAT,      // Create file if it does not exist
+            S_IWUSR |     // User write permission
+                S_IRUSR   // User read permission
+            );
+        rollback_journal(fdj,fd);
+    }
+    fdj = open(filename_journal,
         O_RDWR |      // Read/Write mode
-            O_CREAT,  // Create file if it does not exist
+        O_CREAT,      // Create file if it does not exist
         S_IWUSR |     // User write permission
             S_IRUSR   // User read permission
         );
-
+    
     if (fdj == -1) {
-    cout<<"UNABLE TO CREATE/OPEN JOURNAL FILE  !!"<<endl;
-    exit(EXIT_FAILURE);
+        cout << "FAILED TO CREATE/OPEN JOURNAL FILE" << endl;
+        exit(EXIT_FAILURE);
     }
-    else{
-        rollback_journal(fdj,fd);
-    }
-
   
     off_t file_length = lseek(fd, 0, SEEK_END);
   
@@ -131,9 +163,8 @@ Pager* pager_open() {
     LRUCache* lru=new LRUCache(capacity);
     pager->file_descriptor = fd;
     pager->file_descriptor_journal = fdj;
-    pager->file_length = file_length;
     pager->lruCache=lru;
-    uint32_t numOfPages=(pager->file_length)/PAGE_SIZE;
+    uint32_t numOfPages=file_length/PAGE_SIZE;
     pager->numOfPages=numOfPages;
     return pager;
 }
@@ -149,11 +180,10 @@ Table* create_db(){ // in c c++ string returns address, so either use string cla
 
 
 void commit_journal(int fdj){
-    if(lseek(fdj,0,SEEK_END))exit(EXIT_FAILURE);
-    if(write(fdj,&magicNumber,4))exit(EXIT_FAILURE);
+    if(lseek(fdj,0,SEEK_END)<0)exit(EXIT_FAILURE);
+    if(write(fdj,&magicNumber,8)<0)exit(EXIT_FAILURE);
 } 
 void create_journal(Table* table){
-
     int fdj=table->pager->file_descriptor_journal;
     // fync retruns -1 on failing, if in c++ treates all values expect 0 as true
     if(fsync(fdj)){
@@ -171,11 +201,12 @@ void create_journal(Table* table){
         exit(EXIT_FAILURE);
     }
 
-    if(lseek(fdj,0,SEEK_SET))exit(EXIT_FAILURE);
+    if(lseek(fdj,0,SEEK_SET)<0)exit(EXIT_FAILURE);
     uint64_t corruptedMagicNumber=0;
-    if(write(fdj,&corruptedMagicNumber,8))exit(EXIT_FAILURE);
+    if(write(fdj,&corruptedMagicNumber,8)<0)exit(EXIT_FAILURE);
 
     // REMOVES FROM FILESYSTEM BUT DOESNT CLOSE IT OR FREE UP RESOURCES.
+    cout<<"unlink"<<endl;
     unlink(filename_journal);
 }
 
@@ -190,10 +221,10 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
         close_db(table);
         exit(EXIT_SUCCESS);
     }
-    else if (strcmp(input_buffer->buffer,".bt")){
+    else if (strcmp(input_buffer->buffer,".bt")==0){
         return META_BEGIN_TRANS;
     }
-    else if (strcmp(input_buffer->buffer,".c")){
+    else if (strcmp(input_buffer->buffer,".c")==0){
         create_journal(table);
         return META_COMMIT_SUCCESS;
     }
@@ -204,6 +235,7 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
 
 executeResult execute_insert(Statement* statement, Table* table,bool COMMIT_NOW) {
     table->bplusTrees->insert(statement->row.key, statement->row.payload);
+    cout<<"COMMIT_NOW: "<<COMMIT_NOW<<endl;
     if(COMMIT_NOW){
         create_journal(table);
     }
@@ -265,15 +297,17 @@ int main(){
                     exit(EXIT_FAILURE);
                 case META_BEGIN_TRANS:
                     COMMIT_NOW=false;
-                    continue;
+                    break;
                 case META_COMMIT_SUCCESS:
                     COMMIT_NOW=true;
-                    continue;
+                    break;
                 case META_COMMAND_SUCCESS:
-                    continue;
+                    break;
             }
         }
-
+        if(inputBuffer->buffer[0]=='.'){
+            continue;
+        }
         Statement* statement=new Statement();
         switch (prepare_statement(inputBuffer,statement)){
             case PREPARE_UNRECOGNIZED_STATEMENT:

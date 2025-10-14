@@ -1,5 +1,6 @@
-rm -f f1.db && g++ -o dbms main.cpp 
+rm -f f1.db && rm -f f1-jn.db && g++ -o dbms main.cpp -lz
 ./dbms <<EOF
+.bt
 i 8 2
 i 9 2
 i 15 3
@@ -41,11 +42,13 @@ i 26 h
 i 27 h
 i 28 h
 i 29 h
+.c
 .exit
 EOF
 
 
 ./dbms <<EOF
+.bt
 d 8 
 d 9 
 d 15 
@@ -87,9 +90,25 @@ d 26
 d 27 
 d 28 
 d 29 
+.c
 .exit
 EOF
 
 
+rm -f f1.db && rm -f f1-jn.db && g++ -o dbms main.cpp -lz
+./dbms <<EOF
+i 8 2
+.exit
+EOF
+
+
+rm -f f1.db && rm -f f1-jn.db && g++ -o dbms main.cpp -lz
+./dbms <<EOF
+.bt
+i 8 2
+i 9 2
+.c
+.exit
+EOF
 
 

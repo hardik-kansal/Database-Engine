@@ -154,7 +154,6 @@ class Bplustrees{
                 if(!leaf->inJournal){
                     pager->write_back_to_journal(leaf);leaf->inJournal=true;
                 }
-                
                 insertRowAt(leaf, index, key, payload, payloadLength);
             } else {
                 // Need to split the page

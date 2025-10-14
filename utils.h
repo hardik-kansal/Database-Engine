@@ -279,7 +279,7 @@ uint32_t random_u32() {
         cout<<"open /dev/urandom failed"<<endl;
         exit(EXIT_FAILURE);
     }
-    if (read(fd, &val,4)) {
+    if (read(fd, &val,4)<0) {
         exit(EXIT_FAILURE);
     }
     close(fd);

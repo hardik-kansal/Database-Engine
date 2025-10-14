@@ -6,13 +6,12 @@
 
 
 
-// total size -> 24 bytes
+// total size -> 20 bytes
 struct Pager{
 
     int file_descriptor;  // 4 bytes
     int file_descriptor_journal;  // 4 bytes
 
-    off_t file_length; // 8 bytes
     LRUCache* lruCache; // 8 bytes
     uint32_t numOfPages; // 4 bytes
 
@@ -181,11 +180,14 @@ struct Pager{
     }
 
     void write_back_header_to_journal(){
-
+        
         int fdj =this->file_descriptor_journal;
-        if(lseek(fdj,0,SEEK_SET))exit(EXIT_FAILURE);
-        uint32_t numOfPages;
-        if(read(fdj,&numOfPages,4))exit(EXIT_FAILURE);
+        int fd=this->file_descriptor;
+        if(lseek(fd,0,SEEK_SET)<0){exit(EXIT_FAILURE);}
+        uint32_t numOfPages=1;
+        if(read(fd,&numOfPages,4)<0 && this->numOfPages>1){
+            exit(EXIT_FAILURE);
+        }
 
         rollback_header header;
         header.magicNumber=magicNumber;
@@ -193,19 +195,18 @@ struct Pager{
         header.salt1=0; // for database versioning
         header.salt2=random_u32(); // for checksum
 
+
         size_t total_len = ROLLBACK_HEADER_SIZE;
         size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
     
         uint8_t buffer[padded_len];
         memset(buffer, 0, padded_len);
-    
         memcpy(buffer, &header,ROLLBACK_HEADER_SIZE );
-        if(lseek(fdj,0,SEEK_END))exit(EXIT_FAILURE);
-        if(write(fdj, buffer, padded_len))EXIT_FAILURE;
+        if(lseek(fdj,0,SEEK_SET)<0){exit(EXIT_FAILURE);}
+        if(write(fdj, buffer, padded_len)<0){exit(EXIT_FAILURE);}
 
         this->lruCache->salt1=header.salt1;
         this->lruCache->salt2=header.salt2;
-
         
     }
     void write_page_with_checksum(void* page) {
@@ -219,17 +220,22 @@ struct Pager{
     
         memcpy(buffer, page, PAGE_SIZE);
         memcpy(buffer + PAGE_SIZE, &cksum, sizeof(cksum));
+
     
         int fdj=this->file_descriptor_journal;
-        if(lseek(fdj,0,SEEK_END))exit(EXIT_FAILURE);
-        if(write(fdj, buffer, padded_len))EXIT_FAILURE;
+        if(lseek(fdj,0,SEEK_END)<0){exit(EXIT_FAILURE);}
+        if(write(fdj, buffer, padded_len)<0){exit(EXIT_FAILURE);}
+
+
     }
 
     void write_back_to_journal(void* page){
         int fdj=this->file_descriptor_journal;
-        if(lseek(fdj,0,SEEK_END))exit(EXIT_FAILURE);
+        if(lseek(fdj,0,SEEK_SET)<0){
+            exit(EXIT_FAILURE);
+        }
         uint64_t magicNumber;
-        if(read(fdj,&magicNumber,8))exit(EXIT_FAILURE);
+        if(read(fdj,&magicNumber,8)<0){exit(EXIT_FAILURE);}
         if(magicNumber!=16102004){
             write_back_header_to_journal();
         }
