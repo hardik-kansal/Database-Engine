@@ -19,6 +19,10 @@ static inline bool checkIfLittleEndian() {
 }
 inline int ifLe=checkIfLittleEndian();
 
+static inline bool GET_IN_JOURNAL(void* ptr, size_t size) {
+    return *(bool*)((uint8_t*)ptr + size-1);
+}
+
 
 // --------------------
 // PAGE HEADER
@@ -264,5 +268,35 @@ void swapEndian(void* node,uint8_t* temp){
 }
 
 
+// /dev/urandom is not a regular file 
+// — it’s a pseudo-device provided by the Linux kernel 
+// It produces a stream of random bytes collected from system entropy sources 
+// (mouse, keyboard timing, hardware noise, etc.).
+uint32_t random_u32() {
+    uint32_t val;
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0) {
+        cout<<"open /dev/urandom failed"<<endl;
+        exit(EXIT_FAILURE);
+    }
+    if (read(fd, &val,4)) {
+        exit(EXIT_FAILURE);
+    }
+    close(fd);
+    return val;
+}
+uint32_t crc32_with_salt(const void *data, size_t len, uint32_t salt1, uint32_t salt2) {
+    // Combine salts and data
+    uint32_t crc = crc32(0L, Z_NULL, 0);
+
+    // Mix salts first
+    crc = crc32(crc, (const Bytef *)&salt1, sizeof(salt1));
+    crc = crc32(crc, (const Bytef *)&salt2, sizeof(salt2));
+
+    // Then mix data
+    crc = crc32(crc, (const Bytef *)data, len);
+
+    return crc;
+}
 
 #endif

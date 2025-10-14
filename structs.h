@@ -4,6 +4,8 @@
 const uint16_t PAGE_SIZE = 4096;
 const uint16_t PAGE_HEADER_SIZE = 14;
 #define MAX_ROWS  4
+#define SECTOR_SIZE  512
+
 
 
 struct RowSlot {
@@ -127,5 +129,18 @@ static_assert(sizeof(RootPageNode)== PAGE_SIZE+2, "RootPageNode SIZE MISMATCH");
 
 // All equivalent nodes have same size, else disk pages and in memory pages would differ.
 // bool dirty must be  at offset PAGE_SIZE 
+
+// 20 bytes
+struct rollback_header{
+    uint64_t magicNumber; //8 bytes
+    uint32_t numOfPages; // 4
+    uint32_t salt1; //4 
+    uint32_t salt2; //4
+}__attribute__((packed));
+
+const uint16_t ROLLBACK_HEADER_SIZE =sizeof(rollback_header); // 20 bytes
+
+
+
 
 #endif

@@ -127,7 +127,6 @@ void commit_journal(Table* table){
 } 
 void create_journal(Table* table){
 
-    table->pager->write_back_to_journal();
     int fdj=table->pager->file_descriptor_journal;
     // fync retruns -1 on failing, if in c++ treates all values expect 0 as true
     if(fsync(fdj)){
@@ -144,9 +143,12 @@ void create_journal(Table* table){
         cout<<"FSYNC MAIN DB FAILED  !!"<<endl;
         exit(EXIT_FAILURE);
     }
+
     off_t success=lseek(fdj,0,SEEK_SET);
     if(success<0)exit(EXIT_FAILURE);
-    // ssize_t bytesWritten=write(fdj)
+    uint64_t corruptedMagicNumber=0;
+    ssize_t bytesWritten=write(fdj,&corruptedMagicNumber,8);
+    if(bytesWritten<0)exit(EXIT_FAILURE);
 
     // REMOVES FROM FILESYSTEM BUT DOESNT CLOSE IT OR FREE UP RESOURCES.
     unlink(filename_journal);

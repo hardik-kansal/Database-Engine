@@ -27,6 +27,9 @@ public:
         unordered_map<uint32_t ,Node*> m;
         Node* head;
         Node* tail;
+        uint32_t salt1;
+        uint32_t salt2;
+
         void insertStart(Node* newNode){
                     newNode->prev=head;
                     Node* nNode=head->next;

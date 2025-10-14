@@ -181,8 +181,61 @@ struct Pager{
         return value;
     }
 
-    void write_back_to_journal(){
-        return;
+    void write_back_header_to_journal(){
+
+        int fdj =this->file_descriptor_journal;
+        if(lseek(fdj,0,SEEK_SET))exit(EXIT_FAILURE);
+        uint32_t numOfPages;
+        if(read(fdj,&numOfPages,4))exit(EXIT_FAILURE);
+
+        rollback_header header;
+        header.magicNumber=16102004;
+        header.numOfPages=numOfPages;
+        header.salt1=0;
+        header.salt2=random_u32();
+
+        size_t total_len = ROLLBACK_HEADER_SIZE;
+        size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+    
+        uint8_t buffer[padded_len];
+        memset(buffer, 0, padded_len);
+    
+        memcpy(buffer, &header,ROLLBACK_HEADER_SIZE );
+        if(lseek(fdj,0,SEEK_END))exit(EXIT_FAILURE);
+        if(write(fdj, buffer, padded_len))EXIT_FAILURE;
+
+        this->lruCache->salt1=header.salt1;
+        this->lruCache->salt2=header.salt2;
+
+        
+    }
+    void write_page_with_checksum(void* page) {
+
+        uint32_t cksum = crc32_with_salt(page,PAGE_SIZE,0+this->lruCache->salt1,this->lruCache->salt2);
+        size_t total_len = PAGE_SIZE + sizeof(cksum);
+        size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+    
+        uint8_t buffer[padded_len];
+        memset(buffer, 0, padded_len);
+    
+        memcpy(buffer, page, PAGE_SIZE);
+        memcpy(buffer + PAGE_SIZE, &cksum, sizeof(cksum));
+    
+        int fdj=this->file_descriptor_journal;
+        if(lseek(fdj,0,SEEK_END))exit(EXIT_FAILURE);
+        if(write(fdj, buffer, padded_len))EXIT_FAILURE;
+    }
+
+    void write_back_to_journal(void* page){
+        off_t check=lseek(this->file_descriptor_journal,0,SEEK_SET);
+        if(check<0)exit(EXIT_FAILURE);
+        uint64_t magicNumber;
+        ssize_t bytesRead=read(this->file_descriptor_journal,&magicNumber,8);
+        if(bytesRead<0)exit(EXIT_FAILURE);
+        if(magicNumber!=16102004){
+            write_back_header_to_journal();
+        }
+        write_page_with_checksum(page);        
     }
 
  };
