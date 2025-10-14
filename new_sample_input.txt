@@ -43,6 +43,7 @@ i 27 h
 i 28 h
 i 29 h
 .c
+s*
 .exit
 EOF
 
@@ -91,10 +92,12 @@ d 27
 d 28 
 d 29 
 .c
+s*
 .exit
 EOF
 
-
+// TO RUN AI GENERATED TESTS
+./ai\ fuzz\ testing/run_all.sh
 
 
 
