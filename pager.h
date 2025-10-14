@@ -6,7 +6,6 @@
 
 
 
-
 // total size -> 24 bytes
 struct Pager{
 
@@ -189,10 +188,10 @@ struct Pager{
         if(read(fdj,&numOfPages,4))exit(EXIT_FAILURE);
 
         rollback_header header;
-        header.magicNumber=16102004;
+        header.magicNumber=magicNumber;
         header.numOfPages=numOfPages;
-        header.salt1=0;
-        header.salt2=random_u32();
+        header.salt1=0; // for database versioning
+        header.salt2=random_u32(); // for checksum
 
         size_t total_len = ROLLBACK_HEADER_SIZE;
         size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
@@ -227,11 +226,10 @@ struct Pager{
     }
 
     void write_back_to_journal(void* page){
-        off_t check=lseek(this->file_descriptor_journal,0,SEEK_SET);
-        if(check<0)exit(EXIT_FAILURE);
+        int fdj=this->file_descriptor_journal;
+        if(lseek(fdj,0,SEEK_END))exit(EXIT_FAILURE);
         uint64_t magicNumber;
-        ssize_t bytesRead=read(this->file_descriptor_journal,&magicNumber,8);
-        if(bytesRead<0)exit(EXIT_FAILURE);
+        if(read(fdj,&magicNumber,8))exit(EXIT_FAILURE);
         if(magicNumber!=16102004){
             write_back_header_to_journal();
         }

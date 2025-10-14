@@ -9,6 +9,8 @@
 #include <fcntl.h> //open(), O_CREAT
 #include "enums.h"
 #include <zlib.h>
+const uint32_t magicNumber=16102004;
+
 using namespace std;
 
 #endif

@@ -68,9 +68,35 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
       }
   
     return PREPARE_UNRECOGNIZED_STATEMENT;
-  }
+}
 
 
+void flushAll_journal(int fdj,int fd){
+    return;   
+}
+
+void rollback_journal(int fdj,int fd){
+    uint32_t checkMagic;
+    // pread doesnt change current file pointer
+    if(pread(fdj,&checkMagic,4,0))exit(EXIT_FAILURE);
+    if(checkMagic!=magicNumber){
+        cout<<"MAGIC_NUMBER different: "<<checkMagic<<endl;
+        return;
+    }
+    if(lseek(fdj,-8,SEEK_END))exit(EXIT_FAILURE);
+    if(read(fdj,&checkMagic,4))exit(EXIT_FAILURE);
+    if(checkMagic!=magicNumber){
+        cout<<"COMMIT different: "<<checkMagic<<endl;
+        return;
+    }
+    cout<<"writing back orginal pages to main db.."<<endl;
+    flushAll_journal(fdj,fd);
+    if(fsync(fd)){
+        cout<<"FSYNC MAIN DB FAILED DURING FLUSHING JOURNAL !!"<<endl;
+        exit(EXIT_FAILURE);
+    }
+}
+  
 Pager* pager_open() {
     int fd = open(filename,
                   O_RDWR |      // Read/Write mode
@@ -95,7 +121,7 @@ Pager* pager_open() {
     exit(EXIT_FAILURE);
     }
     else{
-        // rollback_journal(journal);
+        rollback_journal(fdj,fd);
     }
 
   
@@ -119,11 +145,12 @@ Table* create_db(){ // in c c++ string returns address, so either use string cla
       table->pager=pager;
       table->bplusTrees=bplusTrees;
       return table;
-  }
+}
 
 
-void commit_journal(Table* table){
-    return;
+void commit_journal(int fdj){
+    if(lseek(fdj,0,SEEK_END))exit(EXIT_FAILURE);
+    if(write(fdj,&magicNumber,4))exit(EXIT_FAILURE);
 } 
 void create_journal(Table* table){
 
@@ -133,7 +160,7 @@ void create_journal(Table* table){
         cout<<"FSYNC JOURNAL FAILED DURING PAGE WRITE !!"<<endl;
         exit(EXIT_FAILURE);
     }
-    commit_journal(table);
+    commit_journal(fdj);
     if(fsync(fdj)){
         cout<<"FSYNC JOURNAL FAILED DURING COMMIT WRITE !!"<<endl;
         exit(EXIT_FAILURE);
@@ -144,11 +171,9 @@ void create_journal(Table* table){
         exit(EXIT_FAILURE);
     }
 
-    off_t success=lseek(fdj,0,SEEK_SET);
-    if(success<0)exit(EXIT_FAILURE);
+    if(lseek(fdj,0,SEEK_SET))exit(EXIT_FAILURE);
     uint64_t corruptedMagicNumber=0;
-    ssize_t bytesWritten=write(fdj,&corruptedMagicNumber,8);
-    if(bytesWritten<0)exit(EXIT_FAILURE);
+    if(write(fdj,&corruptedMagicNumber,8))exit(EXIT_FAILURE);
 
     // REMOVES FROM FILESYSTEM BUT DOESNT CLOSE IT OR FREE UP RESOURCES.
     unlink(filename_journal);
