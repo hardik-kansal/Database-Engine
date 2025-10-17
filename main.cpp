@@ -73,7 +73,7 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,Statement* statement) 
 
 
 void flushAll_journal(int fdj,int fd){
-    // Read rollback header (sector aligned)
+    
     off_t file_size = lseek(fdj, 0, SEEK_END);
     if(file_size <= 0) return;
 
@@ -86,16 +86,14 @@ void flushAll_journal(int fdj,int fd){
 
     rollback_header header;
     if(lseek(fdj, 0, SEEK_SET) < 0) { exit(EXIT_FAILURE); }
-    // We can read header directly; it's at the start
     if(read(fdj, &header, sizeof(header)) < 0) { exit(EXIT_FAILURE); }
-    if(header.magicNumber != MAGIC_NUMBER) {
-        // Not a valid journal
-        return;
-    }
 
     
     off_t offset = padded_header_len;
-    while(offset + (off_t)8 <= file_size) {
+    uint32_t totalPages=header.numOfPages;
+    
+    int count=0;
+    while(count<totalPages) {
         // Ensure enough for at least one record header (PAGE + 4 checksum)
         if(offset + (off_t)(PAGE_SIZE + sizeof(uint32_t)) > file_size - 8) break;
 
@@ -106,7 +104,15 @@ void flushAll_journal(int fdj,int fd){
         if(pread(fdj, &stored_cksum, sizeof(stored_cksum), offset + PAGE_SIZE) < 0) { exit(EXIT_FAILURE); }
 
         // Verify checksum
-        uint32_t calc = crc32_with_salt(pagebuf, PAGE_SIZE, 0 + header.salt1, header.salt2);
+        cout<<"while verifying.."<<endl;
+        cout<<"page: "<<GET_PAGE_NO(pagebuf,true)<<endl;
+        cout<<"pageTYpe: "<<GET_PAGE_TYPE(pagebuf,true)<<endl;
+        cout<<"rowCount: "<<GET_ROW_COUNT(pagebuf,true)<<endl;
+        // cout<<"salt2: "<<header.salt2<<endl;
+
+        uint32_t calc = crc32_with_salt(pagebuf, PAGE_SIZE, 0, header.salt2);
+        // cout<<"calc: "<<calc<<endl;
+        // cout<<"stored_cksum: "<<stored_cksum<<endl;
         if(calc != stored_cksum) {
             cout << "Journal checksum mismatch, aborting rollback" << endl;
             exit(EXIT_FAILURE);
@@ -123,6 +129,7 @@ void flushAll_journal(int fdj,int fd){
 
         
         if(ifLe) {
+            cout<<"writing to main db.."<<endl;
             if(pwrite(fd, pagebuf, PAGE_SIZE, db_off) < 0) { cout<<"ERROR WRITING"<<endl; exit(EXIT_FAILURE); }
         } else {
             reading = false;
@@ -135,16 +142,18 @@ void flushAll_journal(int fdj,int fd){
         size_t rec_total = PAGE_SIZE + sizeof(uint32_t);
         size_t rec_padded = ((rec_total + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
         offset += rec_padded;
+        count++;
     }
     return;   
 }
 
-void rollback_journal(int fdj,int fd){
+bool rollback_journal(int fdj,int fd,uint32_t* i_numOfPages){
     // Check if journal file is empty or too small
+
     off_t file_size = lseek(fdj, 0, SEEK_END);
     if(file_size < 4) {
         cout<<"Journal file is empty or too small, skipping rollback"<<endl;
-        return;
+        return false;
     }
     
     uint64_t checkMagic;
@@ -156,11 +165,11 @@ void rollback_journal(int fdj,int fd){
     }
     if(checkMagic!=MAGIC_NUMBER){
         cout<<"MAGIC_NUMBER different: "<<checkMagic<<endl;
-        return;
+        return false;
     }
     if(file_size < 8) {
         cout << "Journal file too small for commit check, skipping" << endl;
-        return;
+        return false;
     }
     if(lseek(fdj,-8,SEEK_END)<0) {
         cout << "Error seeking to end of journal file" << endl;
@@ -173,14 +182,26 @@ void rollback_journal(int fdj,int fd){
     }
     if(checkMagic!=MAGIC_NUMBER){
         cout<<"COMMIT MSG different FROM MagicNumber: "<<checkMagic<<endl;
-        return;
+        return false;
     }
+    rollback_header header;
+    if(lseek(fdj, 0, SEEK_SET) < 0) { exit(EXIT_FAILURE); }
+    if(read(fdj, &header, sizeof(header)) < 0) { exit(EXIT_FAILURE); }
+    cout<<"header.numOfPages: "<<header.numOfPages<<endl;
+    if(header.numOfPages==0){
+        cout<<"0 pages to be restored"<<endl;
+        i_numOfPages=0;
+        return true;
+    }
+    i_numOfPages_g=header.numOfPages;
+    *i_numOfPages=i_numOfPages_g;
     cout<<"writing back orginal pages to main db.."<<endl;
     flushAll_journal(fdj,fd);
     if(fsync(fd)){
         cout<<"FSYNC MAIN DB FAILED DURING FLUSHING JOURNAL !!"<<endl;
         exit(EXIT_FAILURE);
     }
+    return true;
 }
   
 Pager* pager_open() {
@@ -195,40 +216,27 @@ Pager* pager_open() {
       cout<<"UNABLE TO OPEN MAIN DB FILE"<<endl;
       exit(EXIT_FAILURE);
     }
-    int fdj;
-    if (access(filename_journal,F_OK)<0) {
-    cout<<"JOURNAL FILE DOES NOT EXIST .."<<endl;
-    }
-    else{
-        fdj = open(filename_journal,
+    uint32_t i_numOfPages=0;
+    int fdj = open(filename_journal,
             O_RDWR |      // Read/Write mode
             O_CREAT,      // Create file if it does not exist
             S_IWUSR |     // User write permission
                 S_IRUSR   // User read permission
             );
-        rollback_journal(fdj,fd);
-    }
-    fdj = open(filename_journal,
-        O_RDWR |      // Read/Write mode
-        O_CREAT,      // Create file if it does not exist
-        S_IWUSR |     // User write permission
-            S_IRUSR   // User read permission
-        );
-    
-    if (fdj == -1) {
-        cout << "FAILED TO CREATE/OPEN JOURNAL FILE" << endl;
-        exit(EXIT_FAILURE);
-    }
-  
-    off_t file_length = lseek(fd, 0, SEEK_END);
-  
+    if(!rollback_journal(fdj,fd,&i_numOfPages)){
+            cout<<"reading numofpages from main db end.."<<endl;
+            if(lseek(fd,-sizeof(uint32_t),SEEK_END)<0){cout<<"here"<<endl;}
+            else if(read(fd,&i_numOfPages,sizeof(uint32_t))<0){cout<<"here1"<<endl;exit(EXIT_FAILURE);}
+            cout<<"i_numOfPages at end of main db: "<<i_numOfPages<<endl;
+            i_numOfPages_g=i_numOfPages;
+        }
+
     Pager* pager = new Pager();
     LRUCache* lru=new LRUCache(capacity);
     pager->file_descriptor = fd;
     pager->file_descriptor_journal = fdj;
     pager->lruCache=lru;
-    uint32_t numOfPages=file_length/PAGE_SIZE;
-    pager->numOfPages=numOfPages;
+    pager->numOfPages=i_numOfPages;
     return pager;
 }
 
@@ -248,6 +256,8 @@ void commit_journal(int fdj){
 } 
 void create_journal(Table* table){
     int fdj=table->pager->file_descriptor_journal;
+    int fd=table->pager->file_descriptor;
+
     // fync retruns -1 on failing, if in c++ treates all values expect 0 as true
     if(fsync(fdj)){
         cout<<"FSYNC JOURNAL FAILED DURING PAGE WRITE !!"<<endl;
@@ -260,8 +270,13 @@ void create_journal(Table* table){
         exit(EXIT_FAILURE);
     }
     // cout<<"FAILLING BEFORE FLUSHING MAIN DB !"<<endl;exit(EXIT_FAILURE);
+
     table->pager->flushAll();
-    if(fsync(table->pager->file_descriptor)){
+    if(lseek(fd,0,SEEK_END)<0)exit(EXIT_FAILURE);
+    cout<<"writing no_of_pages to maindb end: "<<table->pager->numOfPages<<endl;
+    if(write(fd,&table->pager->numOfPages,sizeof(uint32_t))<0)exit(EXIT_FAILURE);
+    
+    if(fsync(fd)){
         cout<<"FSYNC MAIN DB FAILED  !!"<<endl;
         exit(EXIT_FAILURE);
     }
@@ -272,11 +287,13 @@ void create_journal(Table* table){
     uint64_t corruptedMagicNumber=0;
     if(write(fdj,&corruptedMagicNumber,8)<0)exit(EXIT_FAILURE);
     table->pager->lruCache->checkMagic=corruptedMagicNumber;
+    table->pager->lruCache->no_of_pages_in_journal=0; // dont req, while writing header we do
+
     
     // cout<<"FAILLING BEFORE UNLINK !"<<endl;exit(EXIT_FAILURE);
 
     // REMOVES FROM FILESYSTEM BUT DOESNT CLOSE IT OR FREE UP RESOURCES.
-    unlink(filename_journal);
+    // unlink(filename_journal);
     // cout<<"FAILLING AFTER UNLINK !"<<endl;exit(EXIT_FAILURE);
 
 }
@@ -285,6 +302,7 @@ void create_journal(Table* table){
 void close_db(Table* table){
     close(table->pager->file_descriptor);
     close(table->pager->file_descriptor_journal);
+    // unlink(filename_journal);
 }
 
 MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
@@ -293,6 +311,9 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
         exit(EXIT_SUCCESS);
     }
     else if (strcmp(input_buffer->buffer,".bt")==0){
+        if(table->pager->getRootPage()->rowCount!=0){
+            i_numOfPages_g=table->pager->numOfPages;
+        }
         return META_BEGIN_TRANS;
     }
     else if (strcmp(input_buffer->buffer,".c")==0){
@@ -305,8 +326,10 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
 }
 
 executeResult execute_insert(Statement* statement, Table* table,bool COMMIT_NOW) {
+    if(COMMIT_NOW && table->pager->getRootPage()->rowCount!=0){
+        i_numOfPages_g=table->pager->numOfPages;
+    }
     table->bplusTrees->insert(statement->row.key, statement->row.payload);
-    // cout<<"COMMIT_NOW: "<<COMMIT_NOW<<endl;
     if(COMMIT_NOW){
         create_journal(table);
     }
@@ -323,6 +346,9 @@ executeResult execute_select_id(Statement* statement, Table* table) {
 }
 
 executeResult execute_delete(Statement* statement, Table* table,bool COMMIT_NOW) {
+    if(COMMIT_NOW && table->pager->getRootPage()->rowCount!=0){
+        i_numOfPages_g=table->pager->numOfPages;
+    }
     bool deleted = table->bplusTrees->deleteKey(statement->row.key);
     if(COMMIT_NOW)create_journal(table);
     if (deleted) {
@@ -355,9 +381,9 @@ executeResult execute_statement(Statement* statement, Table* table,bool COMMIT_N
 
 int main(){
     bool COMMIT_NOW=true;
-    Table * table= create_db();
+    Table * table=create_db();
     while (true){
-
+        cout<<"i_numOfPages_g: "<<i_numOfPages_g<<endl;
         InputBuffer* inputBuffer=createEmptyBuffer();
         print_prompt();
         read_input(inputBuffer);

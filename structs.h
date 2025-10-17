@@ -22,6 +22,9 @@ const uint16_t FREE_START_DEFAULT = PAGE_SIZE;
 // trunkstart, datbaseVersioning
 const uint16_t ROOT_BACK_HEADER_SIZE=2*sizeof(uint32_t);
 const uint16_t TRUNK_START_BACK_SIZE=ROOT_BACK_HEADER_SIZE;
+const uint16_t DATABASE_VER_BACK_SIZE=ROOT_BACK_HEADER_SIZE-sizeof(uint32_t);
+
+
 const uint16_t MAX_PAYLOAD_SIZE_ROOT= PAGE_SIZE 
                                 - PAGE_HEADER_SIZE  
                                 - sizeof(RowSlot) * MAX_ROWS 

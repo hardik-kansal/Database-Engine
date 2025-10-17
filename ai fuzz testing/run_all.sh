@@ -19,6 +19,19 @@ for t in "${tests[@]}"; do
   echo "=== Done $t ==="
 done
 
+echo "=== Running transaction fuzz tests ==="
+transaction_tests=(
+  "$dir/../ai_fuzz_testing_transactions/txn_basic_insert.sh"
+  "$dir/../ai_fuzz_testing_transactions/txn_insert_delete_rollback.sh"
+  "$dir/../ai_fuzz_testing_transactions/txn_interleaved_operations.sh"
+)
+
+for t in "${transaction_tests[@]}"; do
+  echo "=== Running $t ==="
+  bash "$t"
+  echo "=== Done $t ==="
+done
+
 echo "All tests completed."
 
 

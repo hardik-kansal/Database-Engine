@@ -706,9 +706,6 @@ class Bplustrees{
                 root->pageNumber=1;
                 pager->lruCache->put(1,root);
                 freePage(page_no);
-                
-
-                return;
             }
             // Check if parent is underflowed and handle it
             if (parent->rowCount < M && path.size() > 2) {
@@ -901,7 +898,6 @@ class Bplustrees{
                 }
                 freePage(page_no);
                 
-                return;
             }
             // Check if parent is underflowed and handle it
             else if (parent->rowCount < M && path.size() > 2) {
@@ -927,6 +923,7 @@ class Bplustrees{
         }
         // Free a page (add to trunk)
         void freePage(uint32_t pageNumber) {
+            pager->numOfPages--;
             if (trunkStart == 1) {
                 // Create first trunk page
                 createNewTrunkPage(pageNumber);
