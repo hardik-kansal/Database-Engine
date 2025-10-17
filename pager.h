@@ -155,10 +155,17 @@ struct Pager{
             ((pageNode*)tem->value)->inJournal=false;
             // cast to any page type since inJournal is at same offset in all page type structs
             counter++;
-            // if(counter==2){
-            //     cout<<"FAILING WHILE FLUSHING TO MAIN DB"<<endl;
-            //     exit(EXIT_FAILURE);
-            // }
+
+            /*
+------------------------------------------------------------------------
+
+            if(counter==2){
+                cout<<"FAILING WHILE FLUSHING TO MAIN DB"<<endl;
+                exit(EXIT_FAILURE);
+            }
+
+------------------------------------------------------------------------
+            */
             tem=tem->next;
         }
     }

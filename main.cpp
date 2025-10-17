@@ -108,11 +108,8 @@ void flushAll_journal(int fdj,int fd){
         cout<<"page: "<<GET_PAGE_NO(pagebuf,true)<<endl;
         cout<<"pageTYpe: "<<GET_PAGE_TYPE(pagebuf,true)<<endl;
         cout<<"rowCount: "<<GET_ROW_COUNT(pagebuf,true)<<endl;
-        // cout<<"salt2: "<<header.salt2<<endl;
 
         uint32_t calc = crc32_with_salt(pagebuf, PAGE_SIZE, 0, header.salt2);
-        // cout<<"calc: "<<calc<<endl;
-        // cout<<"stored_cksum: "<<stored_cksum<<endl;
         if(calc != stored_cksum) {
             cout << "Journal checksum mismatch, aborting rollback" << endl;
             exit(EXIT_FAILURE);
@@ -158,32 +155,27 @@ bool rollback_journal(int fdj,int fd,uint32_t* i_numOfPages){
     
     uint64_t checkMagic;
     // pread doesnt change current file pointer
-    ssize_t bytes_read = pread(fdj,&checkMagic,sizeof(MAGIC_NUMBER),0);
-    if(bytes_read < 0) {
-        cout << "Error reading from journal file" << endl;
-        exit(EXIT_FAILURE);
-    }
+    if(pread(fdj,&checkMagic,sizeof(MAGIC_NUMBER),0)<0)exit(EXIT_FAILURE);
+
+
     if(checkMagic!=MAGIC_NUMBER){
         cout<<"MAGIC_NUMBER different: "<<checkMagic<<endl;
         return false;
     }
+
     if(file_size < 8) {
         cout << "Journal file too small for commit check, skipping" << endl;
         return false;
     }
-    if(lseek(fdj,-8,SEEK_END)<0) {
-        cout << "Error seeking to end of journal file" << endl;
-        exit(EXIT_FAILURE);
-    }
-    ssize_t bytes_read2 = read(fdj,&checkMagic,sizeof(MAGIC_NUMBER));
-    if(bytes_read2 < 0) {
-        cout << "Error reading commit magic number" << endl;
-        exit(EXIT_FAILURE);
-    }
+
+    if(lseek(fdj,-8,SEEK_END)<0)exit(EXIT_FAILURE);
+    if(read(fdj,&checkMagic,sizeof(MAGIC_NUMBER))<0)exit(EXIT_FAILURE);
+
     if(checkMagic!=MAGIC_NUMBER){
         cout<<"COMMIT MSG different FROM MagicNumber: "<<checkMagic<<endl;
         return false;
     }
+
     rollback_header header;
     if(lseek(fdj, 0, SEEK_SET) < 0) { exit(EXIT_FAILURE); }
     if(read(fdj, &header, sizeof(header)) < 0) { exit(EXIT_FAILURE); }
@@ -195,12 +187,14 @@ bool rollback_journal(int fdj,int fd,uint32_t* i_numOfPages){
     }
     i_numOfPages_g=header.numOfPages;
     *i_numOfPages=i_numOfPages_g;
+
     cout<<"writing back orginal pages to main db.."<<endl;
     flushAll_journal(fdj,fd);
     if(fsync(fd)){
         cout<<"FSYNC MAIN DB FAILED DURING FLUSHING JOURNAL !!"<<endl;
         exit(EXIT_FAILURE);
     }
+
     return true;
 }
   
@@ -254,6 +248,7 @@ void commit_journal(int fdj){
     if(lseek(fdj,0,SEEK_END)<0)exit(EXIT_FAILURE);
     if(write(fdj,&MAGIC_NUMBER,8)<0)exit(EXIT_FAILURE);
 } 
+
 void create_journal(Table* table){
     int fdj=table->pager->file_descriptor_journal;
     int fd=table->pager->file_descriptor;
@@ -263,13 +258,18 @@ void create_journal(Table* table){
         cout<<"FSYNC JOURNAL FAILED DURING PAGE WRITE !!"<<endl;
         exit(EXIT_FAILURE);
     }
-    // cout<<"FAILLING BEFORE COMMIT !"<<endl;exit(EXIT_FAILURE);
+
     commit_journal(fdj);
     if(fsync(fdj)){
         cout<<"FSYNC JOURNAL FAILED DURING COMMIT WRITE !!"<<endl;
         exit(EXIT_FAILURE);
     }
-    // cout<<"FAILLING BEFORE FLUSHING MAIN DB !"<<endl;exit(EXIT_FAILURE);
+
+/*
+------------------------------------------------------------
+    cout<<"FAILLING BEFORE FLUSHING MAIN DB !"<<endl;exit(EXIT_FAILURE);
+---------------------------------------------------------------  
+*/
 
     table->pager->flushAll();
     if(lseek(fd,0,SEEK_END)<0)exit(EXIT_FAILURE);
@@ -280,21 +280,20 @@ void create_journal(Table* table){
         cout<<"FSYNC MAIN DB FAILED  !!"<<endl;
         exit(EXIT_FAILURE);
     }
-    // cout<<"FAILLING BEFORE CORRUPTING MAGIC NUMBER !"<<endl;exit(EXIT_FAILURE);
+
+/*
+------------------------------------------------------------
+    cout<<"FAILLING BEFORE CORRUPTING MAGIC NUMBER !"<<endl;exit(EXIT_FAILURE);
+---------------------------------------------------------------  
+*/
+
+
 
     // make journal invalid
     if(lseek(fdj,0,SEEK_SET)<0)exit(EXIT_FAILURE);
     uint64_t corruptedMagicNumber=0;
     if(write(fdj,&corruptedMagicNumber,8)<0)exit(EXIT_FAILURE);
     table->pager->lruCache->checkMagic=corruptedMagicNumber;
-    table->pager->lruCache->no_of_pages_in_journal=0; // dont req, while writing header we do
-
-    
-    // cout<<"FAILLING BEFORE UNLINK !"<<endl;exit(EXIT_FAILURE);
-
-    // REMOVES FROM FILESYSTEM BUT DOESNT CLOSE IT OR FREE UP RESOURCES.
-    // unlink(filename_journal);
-    // cout<<"FAILLING AFTER UNLINK !"<<endl;exit(EXIT_FAILURE);
 
 }
 
