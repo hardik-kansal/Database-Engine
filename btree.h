@@ -31,6 +31,7 @@ class Bplustrees{
                 this->root->trunkStart=1;
                 this->root->numOfPages=1;
                 this->root->databaseVersion=0;
+                this->root->inJournal=false;
             } else {
                 this->root = rootPage;
             }

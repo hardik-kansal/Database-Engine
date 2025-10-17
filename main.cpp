@@ -304,13 +304,14 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
 }
 
 executeResult execute_insert(Statement* statement, Table* table,bool COMMIT_NOW) {
-    cout<<"insert called.."<<endl;
+    cout<<"insert called: "<<statement->row.key<<endl;
     table->bplusTrees->insert(statement->row.key, statement->row.payload);
     // cout<<"COMMIT_NOW: "<<COMMIT_NOW<<endl;
     if(COMMIT_NOW){
         cout<<"creating journal.."<<endl;
         create_journal(table);
     }
+    table->bplusTrees->printTree();
     return EXECUTE_SUCCESS;
 }
 
