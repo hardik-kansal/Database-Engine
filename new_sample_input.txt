@@ -116,7 +116,6 @@ i 12 2
 i 13 3
 i 14 3
 i 4 1
-i 5 h
 .c
 .exit
 EOF

@@ -87,19 +87,12 @@ class Bplustrees{
         void printTree() {
             printRootNode(root);
             queue<pageNode*> q;
-            set<uint32_t> visited; // Track visited page numbers to prevent cycles
             q.push(nullptr);
             bool check=root->type==PAGE_TYPE_LEAF;
             uint16_t len=(!check)?root->rowCount+1: root->rowCount;
             for (uint16_t i=0;i<len;i++) {
                 uint32_t page_no=pager->getPageNoPayload(root,i);
-                if(!check && page_no!=0 && visited.find(page_no) == visited.end()) {
-                    pageNode* node = pager->getPage(page_no);
-                    if(node != nullptr) {
-                        q.push(node);
-                        visited.insert(page_no);
-                    }
-                }
+                if(!check && page_no!=0)q.push(pager->getPage(page_no));
             }           
             while (!q.empty()) {
                 pageNode* node = q.front();
@@ -113,13 +106,7 @@ class Bplustrees{
                     uint16_t len=(!check)?node->rowCount+1: node->rowCount;
                     for (uint16_t i=0;i<len;i++) {
                         uint32_t page_no=pager->getPageNoPayload(node,i);
-                        if(!check && page_no!=0 && visited.find(page_no) == visited.end()) {
-                            pageNode* child = pager->getPage(page_no);
-                            if(child != nullptr) {
-                                q.push(child);
-                                visited.insert(page_no);
-                            }
-                        }
+                        if(!check && page_no!=0)q.push(pager->getPage(page_no));
                     }
                 }
             }
@@ -131,13 +118,6 @@ class Bplustrees{
                 return this->root->numOfPages;
             }
             TrunkPageNode* node=pager->getTrunkPage(trunkStart);
-            if(node == nullptr){
-                // Invalid trunk page, reset to default
-                trunkStart = 1;
-                this->root->trunkStart = 1;
-                this->root->numOfPages++;
-                return this->root->numOfPages;
-            }
             if(node->rowCount==0){
                 root->trunkStart=node->prevTrunkPage;
                 trunkStart=root->trunkStart;
@@ -154,12 +134,7 @@ class Bplustrees{
             // Navigate to the appropriate leaf page
             while (curr->type != PAGE_TYPE_LEAF) {
                 uint16_t idx = ub(curr->slots, curr->rowCount, key);
-                pageNode* next = pager->getPage(pager->getPageNoPayload(curr, idx));
-                if(next == nullptr) {
-                    cout << "ERROR: Failed to get page during insert traversal" << endl;
-                    return;
-                }
-                curr = next;
+                curr = pager->getPage(pager->getPageNoPayload(curr, idx));
                 // getPage make sure to put into lrucache
                 path.push_back(curr);
             }
@@ -246,7 +221,7 @@ class Bplustrees{
             
             // Insert the new row in the appropriate page
             if (index < splitIndex) {
-                moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
+                moveRowsToNewLeaf(leaf, newLeaf, splitIndex-1);
                 insertRowAt(leaf, index, key, payload, payloadLength);
             } else {
                 moveRowsToNewLeaf(leaf, newLeaf, splitIndex);
@@ -316,8 +291,8 @@ class Bplustrees{
             // Copy payloads (use offsets/lengths from the moved range)
             uint32_t newPayloadOffset = FREE_START_DEFAULT; // newLeaf is always a normal page
             for (uint16_t i = 0; i < rowsToMove; i++) {
-                uint32_t oldOffset = newLeaf->slots[i].offset;
-                uint32_t length    = newLeaf->slots[i].length;
+                uint32_t oldOffset = oldLeaf->slots[i + splitIndex].offset;
+                uint32_t length    = oldLeaf->slots[i + splitIndex].length;
                 
                 memcpy(((char*)newLeaf) + newPayloadOffset - length, ((char*)oldLeaf) + oldOffset, length);
                 newLeaf->slots[i].offset = newPayloadOffset - length;
@@ -354,11 +329,6 @@ class Bplustrees{
             newRoot->numOfPages=root->numOfPages;
             newRoot->databaseVersion=root->databaseVersion;
             
-            // Clean up old root if it's not the same as leftChild
-            if (root != (RootPageNode*)leftChild) {
-                delete root;
-            }
-            
             pager->lruCache->put(newRoot->pageNumber, newRoot);
             root = newRoot;
         }
@@ -376,11 +346,12 @@ class Bplustrees{
                 if(!internal->inJournal){
                     pager->write_back_to_journal(internal);internal->inJournal=true;
                 }
+                cout<<"insertInternalRowAt"<<endl;
                 insertInternalRowAt(internal, index, key, rightPageNumber);
 
             } else {
                 // Split internal node
-                
+                cout<<"splitInternalAndInsert"<<endl;
                 splitInternalAndInsert(internal, index, key, rightPageNumber, path);
             }
         }
@@ -462,6 +433,7 @@ class Bplustrees{
             }
             // Insert the new entry
             if (index < splitIndex) {
+                cout<<"index < splitIndex"<<endl;
                  newKey=internal->slots[splitIndex-1].key;
                  uint16_t rightOffset=internal->slots[splitIndex-1].offset;
                  moveInternalRowsToNew(internal, newInternal, splitIndex); 
@@ -469,6 +441,7 @@ class Bplustrees{
                  defragment(internal,rightOffset);
                  insertInternalRowAt(internal, index, key, pageNumber);
             } else if(index==splitIndex){
+                cout<<"index ==splitIndex"<<endl;
                 uint16_t rightOffset=internal->slots[splitIndex].offset;
                 moveInternalRowsToNew(internal, newInternal, splitIndex);   
                 internal->rowCount = splitIndex;  
@@ -477,8 +450,8 @@ class Bplustrees{
                 newKey=key;
             }
             else{
+                cout<<"index > splitIndex"<<endl;
                 newKey= internal->slots[splitIndex].key;
-                
                 uint16_t rightOffset=internal->slots[splitIndex].offset;
                 moveInternalRowsToNew(internal, newInternal, splitIndex+1);   
                 internal->rowCount = splitIndex;  
@@ -493,6 +466,7 @@ class Bplustrees{
                 createNewRoot(internal,newInternal,newKey);
             } else {
                 path.pop_back();
+                cout<<"insertIntoInternal"<<endl;
                 insertIntoInternal(path[path.size() - 1], internal, newInternal, path,newKey);
             }
         }

@@ -238,6 +238,7 @@ Table* create_db(){ // in c c++ string returns address, so either use string cla
 
 
 void commit_journal(int fdj){
+    cout<<"writing commit mssg to journal.."<<endl;
     if(lseek(fdj,0,SEEK_END)<0)exit(EXIT_FAILURE);
     if(write(fdj,&MAGIC_NUMBER,sizeof(MAGIC_NUMBER))<0)exit(EXIT_FAILURE);
 } 
@@ -255,6 +256,7 @@ void create_journal(Table* table){
         exit(EXIT_FAILURE);
     }
     // cout<<"FAILLING BEFORE FLUSHING MAIN DB !"<<endl;exit(EXIT_FAILURE);
+    cout<<"flushing main db.."<<endl;
     table->pager->flushAll();
     if(fsync(table->pager->file_descriptor)){
         cout<<"FSYNC MAIN DB FAILED  !!"<<endl;
@@ -278,6 +280,7 @@ void create_journal(Table* table){
 
 
 void close_db(Table* table){
+    cout<<"closing db.."<<endl;
     close(table->pager->file_descriptor);
     close(table->pager->file_descriptor_journal);
     unlink("f1-jn.db");
@@ -301,9 +304,11 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
 }
 
 executeResult execute_insert(Statement* statement, Table* table,bool COMMIT_NOW) {
+    cout<<"insert called.."<<endl;
     table->bplusTrees->insert(statement->row.key, statement->row.payload);
     // cout<<"COMMIT_NOW: "<<COMMIT_NOW<<endl;
     if(COMMIT_NOW){
+        cout<<"creating journal.."<<endl;
         create_journal(table);
     }
     return EXECUTE_SUCCESS;

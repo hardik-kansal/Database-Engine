@@ -73,6 +73,7 @@ struct Pager{
             }
             
             RootPageNode* node = new RootPageNode();
+            cout<<"rawPage.pageNumber: "<<rawPage.pageNumber<<endl;
             if(page_no!=rawPage.pageNumber)return nullptr;
             node->pageNumber = rawPage.pageNumber;
             node->type = static_cast<PageType>(rawPage.type); 
@@ -85,7 +86,8 @@ struct Pager{
             node->trunkStart=rawPage.trunkStart;         
             node->dirty=false; 
             node->databaseVersion=rawPage.databaseVersion;  
-            node->numOfPages=rawPage.numOfPages;        
+            node->numOfPages=rawPage.numOfPages;  
+            node->inJournal=false;      
             this->lruCache->put(1,node);
             return node;
         }
@@ -212,8 +214,7 @@ struct Pager{
 
         this->lruCache->salt1=header.salt1;
         this->lruCache->salt2=header.salt2;
-        this->lruCache->checkMagic=MAGIC_NUMBER;
-        
+        this->lruCache->checkMagic=MAGIC_NUMBER;       
     }
     void write_page_with_checksum(void* page) {
 
