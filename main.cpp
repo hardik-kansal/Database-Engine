@@ -140,14 +140,14 @@ void flushAll_journal(int fdj,int fd){
 }
 
 void rollback_journal(int fdj,int fd){
-    // Check if journal file is empty or too small
+    
     off_t file_size = lseek(fdj, 0, SEEK_END);
     if(file_size < 4) {
         cout<<"Journal file is empty or too small, skipping rollback"<<endl;
         return;
     }
     
-    uint32_t checkMagic;
+    uint64_t checkMagic;
     // pread doesnt change current file pointer
     ssize_t bytes_read = pread(fdj,&checkMagic,4,0);
     if(bytes_read < 0) {
@@ -200,13 +200,11 @@ Pager* pager_open() {
     cout<<"JOURNAL FILE DOES NOT EXIST .."<<endl;
     }
     else{
-        fdj = open(filename_journal,
-            O_RDWR |      // Read/Write mode
-            O_CREAT,      // Create file if it does not exist
-            S_IWUSR |     // User write permission
-                S_IRUSR   // User read permission
-            );
+        fdj = open(filename_journal,O_RDWR);
+        if(fdj<0){cout<<"ERROR OPENING JOURNAL (ACCESS METHOD FAILING)";exit(EXIT_FAILURE);}
+        cout<<"ROLLBACK CALLED!!"<<endl;
         rollback_journal(fdj,fd);
+        close(fdj);
     }
     fdj = open(filename_journal,
         O_RDWR |      // Read/Write mode
@@ -241,7 +239,7 @@ Table* create_db(){ // in c c++ string returns address, so either use string cla
 
 void commit_journal(int fdj){
     if(lseek(fdj,0,SEEK_END)<0)exit(EXIT_FAILURE);
-    if(write(fdj,&MAGIC_NUMBER,8)<0)exit(EXIT_FAILURE);
+    if(write(fdj,&MAGIC_NUMBER,sizeof(MAGIC_NUMBER))<0)exit(EXIT_FAILURE);
 } 
 void create_journal(Table* table){
     int fdj=table->pager->file_descriptor_journal;
@@ -272,7 +270,7 @@ void create_journal(Table* table){
     
     // cout<<"FAILLING BEFORE UNLINK !"<<endl;exit(EXIT_FAILURE);
 
-    // REMOVES FROM FILESYSTEM BUT DOESNT CLOSE IT OR FREE UP RESOURCES.
+    // REMOVES FROM FILESYSTEM BUT DOESNT CLOSE IT FOR PROCESSES WHICH HAVENT CLOSE IT
     unlink(filename_journal);
     // cout<<"FAILLING AFTER UNLINK !"<<endl;exit(EXIT_FAILURE);
 
@@ -282,6 +280,7 @@ void create_journal(Table* table){
 void close_db(Table* table){
     close(table->pager->file_descriptor);
     close(table->pager->file_descriptor_journal);
+    unlink("f1-jn.db");
 }
 
 MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {

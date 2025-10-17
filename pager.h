@@ -188,16 +188,16 @@ struct Pager{
         
         int fdj =this->file_descriptor_journal;
         int fd=this->file_descriptor;
-        if(lseek(fd,0,SEEK_SET)<0){exit(EXIT_FAILURE);}
+        if(lseek(fd,PAGE_SIZE-NO_OF_PAGES_BACK_SIZE,SEEK_SET)<0){exit(EXIT_FAILURE);}
         uint32_t numOfPages=1;
         if(read(fd,&numOfPages,4)<0 && this->getRootPage()->numOfPages>1){
             exit(EXIT_FAILURE);
         }
-
+        cout<<"numOFPAGES while writing header: "<<numOfPages<<endl;
         rollback_header header;
         header.magicNumber=MAGIC_NUMBER;
         header.numOfPages=numOfPages;
-        header.salt1=0; // for database versioning
+        header.salt1=this->getRootPage()->databaseVersion; // for database versioning
         header.salt2=random_u32(); // for checksum
 
 
@@ -237,8 +237,10 @@ struct Pager{
 
     void write_back_to_journal(void* page){
         if(this->lruCache->checkMagic!=MAGIC_NUMBER){
+            cout<<"writing header"<<endl;
             write_back_header_to_journal();
         }
+        cout<<"writing page: "<<GET_PAGE_NO(page,true)<<endl;
         write_page_with_checksum(page);        
     }
 
