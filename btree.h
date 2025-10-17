@@ -55,13 +55,14 @@ class Bplustrees{
             if(node==nullptr)return;
             bool check=node->type==PAGE_TYPE_INTERIOR;
             uint16_t len=(check)?node->rowCount+1: node->rowCount;
-            cout<<"["<<" ";
+            cout<<"["<<" ";cout<<"len: "<<len<<' ';
+
             for(uint16_t i=0;i<len;i++){
                 if(!check)cout<<"lk: "<<node->slots[i].key<<' ';
                 else{
                     if(i>0){
                     cout<<"k: "<<node->slots[i-1].key<<" ";
-                    // cout<<"of: "<<node->slots[i-1].offset<<" ";
+                    cout<<"of: "<<node->slots[i-1].offset<<" ";
                     }
                     cout<<"p: "<<pager->getPageNoPayload(node,i)<<' ';
                 }
@@ -78,7 +79,7 @@ class Bplustrees{
                 else{
                     if(i>0){
                         cout<<"k: "<<node->slots[i-1].key<<" ";
-                        // cout<<"of: "<<node->slots[i-1].offset<<" ";
+                        cout<<"of: "<<node->slots[i-1].offset<<" ";
                     }
                     cout<<"p: "<<pager->getPageNoPayload(node,i)<<' ';
                 }

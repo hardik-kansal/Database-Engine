@@ -311,7 +311,6 @@ executeResult execute_insert(Statement* statement, Table* table,bool COMMIT_NOW)
         cout<<"creating journal.."<<endl;
         create_journal(table);
     }
-    table->bplusTrees->printTree();
     return EXECUTE_SUCCESS;
 }
 
@@ -320,6 +319,7 @@ executeResult execute_select(Statement* statement, Table* table) {
     return EXECUTE_SUCCESS;
 }
 executeResult execute_select_id(Statement* statement, Table* table) {
+    // cout<<"pageno: "<<table->pager->getPage(statement->row.key)->pageNumber<<endl;
     table->bplusTrees->printNode(table->pager->getPage(statement->row.key));
     return EXECUTE_SUCCESS;
 }

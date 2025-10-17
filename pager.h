@@ -19,6 +19,8 @@ struct Pager{
     pageNode* getPage(uint32_t page_no){
         if(page_no == 0) return nullptr;
         RootPageNode* rootPage = this->getRootPage();
+        if(rootPage==nullptr)cout<<"empty root error.."<<endl;
+        else cout<<"numofpages: "<<rootPage->numOfPages<<endl;
         if(rootPage == nullptr || page_no > rootPage->numOfPages)return nullptr;
         if(this->lruCache->get(page_no)!=nullptr)return (pageNode*)this->lruCache->get(page_no);
         else{
@@ -143,23 +145,48 @@ struct Pager{
             delete[] temp;
         }
     }
+    void printRootNode(RootPageNode* node){
+        if(node==nullptr)return;
+        bool check=node->type==PAGE_TYPE_INTERIOR;
+        uint16_t len=(check)?node->rowCount+1: node->rowCount;
+        cout<<"["<<" ";
+        for(uint16_t i=0;i<len;i++){
+            if(!check)cout<<"lk: "<<node->slots[i].key<<' ';
+            else{
+                if(i>0){
+                    cout<<"k: "<<node->slots[i-1].key<<" ";
+                    cout<<"of: "<<node->slots[i-1].offset<<" ";
+                }
+                cout<<"p: "<<this->getPageNoPayload(node,i)<<' ';
+            }
+        }
+        cout<<"]"<<"    ";
+    }
 
     void flushAll(){
         uint32_t count=this->lruCache->count;
         Node* tem=this->lruCache->head->next;
         for(uint32_t i=0;i<count;i++){
-            if (GET_PAGE_NO(tem->value,true)==1){this->writePage(tem->value);}
-            else if(GET_DIRTY(tem->value,PAGE_SIZE+1)){this->writePage(tem->value);}
+            if (GET_PAGE_NO(tem->value,true)==1){
+                
+            cout<<"pageno flushing to maindb: "<<GET_PAGE_NO(tem->value,true)<<endl;
+                this->printRootNode(this->getRootPage());
+                this->writePage(tem->value);}
+            else if(GET_DIRTY(tem->value,PAGE_SIZE+1)){
+            cout<<"pageno flushing to maindb: "<<GET_PAGE_NO(tem->value,true)<<endl;
+                
+                this->writePage(tem->value);}
             
             // EACH Query or transaction once done needed to unmark 
             // ELSE seperate queries will consider flushAgain or consider them in their journal.
-        
             ((pageNode*)tem->value)->dirty=false;
             ((pageNode*)tem->value)->inJournal=false;
             // cast to any page type since inJournal is at same offset in all page type structs
             
             tem=tem->next;
         }
+        // root must be dirty always, i,e flushed to Maindb
+        this->getRootPage()->dirty=true;
     }
 
     uint8_t getRow(uint16_t id,uint32_t page_no){
