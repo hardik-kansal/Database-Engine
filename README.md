@@ -31,10 +31,10 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 |-----------|---------|-------|------|
 | `RowSlot` | Points to one record in a page | `key` (uint64), `offset` (uint16), `length` (uint32) | One slot per record |
 | `pageNode / Page` | Non-root leaf/interior page | `pageNumber`, `type`, `rowCount`, `freeStart`, `freeEnd`, `slots[MAX_ROWS]`, `payload[MAX_PAYLOAD_SIZE]` | `pageNode` adds `dirty` flag |
-| `RootPageNode / RootPage` | Root page | Same as `pageNode` + `trunkStart` in payload | `dirty` flag added |
+| `RootPageNode / RootPage` | Root page | Same as `pageNode` + `trunkStart` + `DatabaseVersion` | `dirty` flag added |
 | `TrunkPageNode / TrunkPage` | Free-list page | `rowCount`, `prevTrunkPage`, `tPages[NO_OF_TPAGES]` | `dirty` flag added |
-| `Pager` | Handles disk I/O and page retrieval | `getPage()`, `writePage()`, `flushAll()`, etc. | Manages endian conversion and LRU |
-| `LRUCache` | In-memory page cache | Hash map + doubly-linked list | Evicts least-recently-used pages |
+| `Pager` | Handles disk I/O for main and journal file | `getPage()`, `writePage()`, `flushAll()`, etc. | Manages endian conversion and LRU |
+| `LRUCache` | In-heap page cache | Hash map + doubly-linked list | Evicts least-recently-used pages |
 | `Bplustrees` | B+ tree implementation | `insert()`, `deleteKey()`, `search()`, `printTree()` | Handles leaf/internal splits, merges, borrowing |
 
 
@@ -65,36 +65,6 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 
 
 
-
-## Basic Workflow 
-
-1. **Open database**
-  - `create_db(filename, capacity)` → `pager_open(...)` opens/creates `f1.db`, initializes `Pager` and `LRUCache`.
-  - `Bplustrees::Bplustrees(pager)` fetches/initializes root via `Pager::getRootPage()` and seeds LRU with page 1.
-
-2. **Insert path**
-  - `main.cpp`: REPL parses `i <key> <value>` → `execute_insert` → `Bplustrees::insert(key, payload)`.
-  - Traverse: `search`-like descent using `Pager::getPage(...)` and `upper/lower bound` to reach target leaf.
-  - Insert into leaf: `insertIntoLeaf` → `insertRowAt` if fits; otherwise `splitLeafAndInsert`.
-  - Split handling: create `createNewLeafPage`, move rows (`moveRowsToNewLeaf`), possibly `createNewRoot` or `insertIntoInternal` (which may trigger `splitInternalAndInsert`).
-  - Allocation: `new_page_no()` prefers recycled pages from trunk via `Pager::getTrunkPage(...)`; else increases `Pager::numOfPages`.
-
-3. **Delete path**
-  - `main.cpp`: REPL parses `d <key>` → `execute_delete` → `Bplustrees::deleteKey(key)`.
-  - Remove from leaf: `deleteFromLeaf` → `removeRowFromLeaf` → `defragLeaf`.
-  - Underflow: `handleLeafUnderflow` attempts borrow (`borrowFromLeftLeaf`/`borrowFromRightLeaf`) else merges via `mergeLeafNodes`.
-  - Internal fixes: `handleInternalUnderflow` with borrow (`borrowFromLeftInternal`/`borrowFromRightInternal`) or merge (`mergeInternalNodes`), possibly changing the root via `createNewRoot` semantics or collapsing.
-  - Freeing pages: `freePage(pageNumber)` records pages into trunk; may create a new trunk page via `createNewTrunkPage`.
-
-4. **Flush and exit**
-  - `.exit` → `close_db` → `Pager::flushAll()` writes root and any dirty pages via `writePage`.
-
-
-
----
-
-
-
 ## Transaction Support and Rollback Journal System
 
 The DBMS implements a **rollback journal** system with automatic recovery capabilities for transaction safety and crash recovery. This is different from WAL (Write-Ahead Logging) - it stores the **original** page content before modification, allowing rollback to the pre-transaction state.
@@ -116,7 +86,7 @@ The journal file (`f1-jn.db`) uses a sector-aligned (512-byte) format for optima
 ```cpp
 struct rollback_header {
     uint64_t magicNumber;    // 8 bytes - To detect corrupted transaction
-    uint32_t numOfPages;     // 4 bytes - Number of pages before a transaction/query begins
+    uint32_t numOfPages;     // 4 bytes - Number of pages before a transaction
     uint32_t salt1;          // 4 bytes - Database versioning
     uint32_t salt2;          // 4 bytes - Checksum salt 
 }
@@ -127,7 +97,7 @@ struct rollback_header {
 ### **Technical Details**
 
 **Why `fsync()`?**
-- **Durability Guarantee**: `fsync()` forces OS to write buffered data to disk
+- **Durability Guarantee**: `fsync()` forces OS to flush buffered kernel data to disk
 - **Crash Safety**: Without `fsync()`, data might be lost in OS buffers during crash
 - **ACID Compliance**: Ensures "D" (Durability) property of transactions
 
@@ -141,27 +111,12 @@ struct rollback_header {
 - **`salt1`**: Database versioning - allows schema evolution without breaking existing journals
 - **`salt2`**: Random checksum salt - prevents predictable checksum attacks
 - **Checksum Uniqueness**: `crc32_with_salt(page, PAGE_SIZE, salt1, salt2)` creates unique checksums
-- **Security**: Prevents malicious checksum manipulation
 
 ### **Transaction Modes**
 
 - **Auto-Commit Mode** (`COMMIT_NOW = true`): Each operation immediately commits
 - **Transaction Mode** (`COMMIT_NOW = false`): Operations are batched until `.c`
 
-### **Crash Recovery**
-
-On database startup:
-1. **Journal Detection**: Check for existing journal file (`f1-jn.db`)
-2. **Magic Validation**: Verify journal header magic number (`MAGIC_NUMBER`)
-3. **Commit Marker Check**: Look for commit marker at end of journal
-4. **Recovery Decision**:
-   - **If commit marker found**: Transaction completed successfully, journal can be ignored
-   - **If no commit marker**: Transaction was interrupted, perform rollback
-5. **Rollback Process**: 
-   - Read journal pages with checksum validation
-   - Restore original pages to main database
-   - Database returns to pre-transaction state
-6. **Journal Cleanup**: Journal file is removed after successful rollback
 
 ### **ACID Properties**
 
@@ -206,9 +161,11 @@ i 200 data4           # Immediately committed
   - **`.bt`** - Begin Transaction: Starts a transaction, disabling auto-commit
   - **`.c`** - Commit Transaction: Commits all pending changes and returns to auto-commit mode
 
-- **Meta**: `.exit`
-  - Flushes dirty pages and exits.
+- **Print Dirty pages**: `.plru`
+  - Prints dirty pages in order of last recently used.
 
+- **Meta**: `.exit`
+  - Closes database connections, and exits the application.
 
 
 ---
@@ -220,19 +177,6 @@ i 200 data4           # Immediately committed
 
 - **Search/Insert/Delete**: O(f x lnf x log<sub>f</sub> N), where f is the fan-out (branching factor). With `MAX_ROWS = 4`, f is small for testing; in general, B+ trees scale with page capacity, so f is large and depth is small.
 - **Print tree** (`s*`): O(number of pages) for traversal.
-
-
-
----
-
-
-
-
-## Memory Management and Caching
-
-- **LRU**: All loaded pages are cached in an LRU with configurable capacity (default `256` in `main.cpp`).
-- **Dirty Tracking**: `pageNode`/`RootPageNode`/`TrunkPageNode` include a `dirty` flag to avoid unnecessary writes. Root is always written on flush; other pages only if dirty.
-- **Flush**: On `.exit`, `Pager::flushAll()` writes pages to disk.
 
 
 
@@ -255,6 +199,17 @@ i 200 data4           # Immediately committed
 
 
 ---
+
+
+
+
+> **Why sector-aligned?**  
+> Disk I/O is performed in units of sectors (usually 512 bytes). When writing to disk, either an entire sector (512 bytes) is written from disk buffers to the physical medium, or nothing is written at all. This ensures atomic writes and prevents partial or corrupted sectors.
+>
+> **Page size and the OS kernel:**  
+> Operating systems manage memory in fixed-size blocks called "pages" (commonly 4096 bytes on modern systems). Setting the database page size equal to the OS's virtual memory page size allows for more efficient memory mapping and I/O: the database can map file pages directly to memory pages, reducing overhead and improving performance.
+
+
 
 
 
@@ -306,13 +261,13 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 
 ## Getting Started
 
-- **Prerequisites**: g++ (C++17), Little-Endian host machine
+- **Prerequisites**: g++ (C++17), Little-Endian host machine, `zlib` development libraries (for `crc32` checksums)
 
 - **Build**
   - From the project root:
 
     ```cpp
-    g++ -std=gnu++17 -O2 -o dbms main.cpp
+    rm -f f1.db && rm -f f1-jn.db && g++ -std=gnu++17 -O2 -o dbms main.cpp -lz
     ./dbms
     ```
 
@@ -326,19 +281,14 @@ Throughout the codebase, the minimal possible size for each variable is used to 
             };
     ```
     
-    and then manually encode/decode fields at specific offsets. This avoids any reliance on `__attribute__((packed))`
-    and does not depend on compiler struct layout or optimization flags. However, the main objective of this project
-    was to keep the code as simple as possible, implementing only the essentials to understand the workflow and
-    the intricacies of structs and compilers. The current code uses packed structs for clarity and brevity, but
-    a real-world DBMS would use explicit byte layouts for full portability and safety.
+    and then manually encode/decode fields at specific offsets. This avoids any reliance on `__attribute__((packed))` and does not depend on compiler struct layout or optimization flags. However, the main objective of this project
+    was to keep the code as simple as possible, implementing only the essentials to understand the workflow and the intricacies of structs and compilers. The current code uses packed structs for clarity and brevity, but a real-world DBMS would use explicit byte layouts for full portability and safety.
     
     Note: This approach is compiler-specific and may not work as intended on compilers that do not honor `__attribute__((packed))` or have different struct layout rules.
 
 - **Fuzz Testing using AI**
-  - Sample input files are under `ai-generated-tests/`. 
-
-- **Reset**
-  - To start fresh, remove the data file: `rm -f f1.db`
+  - Sample input files for basic operations are provided under `ai fuzz testing/`.
+  - Sample input files specifically for transactions are included in `ai_fuzz_testing_transactions/`.
 
 
 
@@ -349,7 +299,7 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 
 ## Repository Layout
 
-- `main.cpp`: REPL and wiring (`Table`, command parsing, execution)
+- `main.cpp`: REPL, Journal handling, db open/close
 - `btree.h`: B+ tree implementation (insert, delete, search, split/merge, print)
 - `pager.h`: Page I/O, cache integration, endian conversion, flush
 - `LRU.h`: LRU cache
@@ -361,22 +311,17 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 ---
 
 
-
-
 ## Notes
 
 - Insertion does not currently update existing keys.
 - Endianness behavior is implemented, but not yet thoroughly tested on big-endian hosts.
 - No concurrency support yet.
 - Only works on machine based on 2's complement arithmatics :)
-- Transaction support includes automatic crash recovery via rollback journal.
-- Rollback journal files are automatically cleaned up after successful commits.
-- Uses rollback journal (not WAL) - stores original page content for rollback capability.
 
 
 
 ## Struct Layout 
 <div align="center">
-<img src="dbms_final.png" alt="B+ Tree Diagram" width="80%">
+<img src="./readme-contents/dbms_final.png" alt="B+ Tree Diagram" width="80%">
 </div>
 

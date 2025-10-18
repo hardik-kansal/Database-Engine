@@ -18,9 +18,12 @@ class Bplustrees{
         Bplustrees(Pager*pager){
             this->pager=pager;
             // Initialize root page if it doesn't exist
+            cout<<"     checking if root node exists in Main db.. "<<endl;
             RootPageNode* rootPage = pager->getRootPage();
+
             if(rootPage == nullptr) {
                 // Create root page
+                cout<<"     first time root node created!"<<endl;
                 this->root = new RootPageNode();
                 this->root->pageNumber = 1;
                 this->root->type = PAGE_TYPE_LEAF;
@@ -31,9 +34,11 @@ class Bplustrees{
                 this->root->trunkStart=1;
                 pager->numOfPages=1;
             } else {
+                cout<<"     root node retreived from Main db"<<endl;
                 this->root = rootPage;
             }
             this->trunkStart=this->root->trunkStart;
+            cout<<"     root inserted in LRU Cache"<<endl;
             pager->lruCache->put(1, this->root);
         }
 

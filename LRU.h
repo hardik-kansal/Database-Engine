@@ -2,6 +2,7 @@
 #define LRU_H
 #include "headerfiles.h"
 #include "structs.h"
+#include "utils.h"
 using namespace std;
 
 // TO_DO 
@@ -18,6 +19,9 @@ struct Node{
         this->value=value;
         next=nullptr;
         prev=nullptr;
+    }
+    ~Node(){
+        if(this->next!=nullptr)delete this->next;
     }
 };
 class LRUCache {
@@ -86,6 +90,16 @@ public:
                 insertStart(newNode);
     
             }
+        }
+        void print_dirty(){
+            Node* temp=head->next;
+            bool check=true;            
+            while(temp!=tail && GET_DIRTY(temp->value,PAGE_SIZE+1)){
+                if(check){cout<<"Last Recently Used->";check=false;}
+                cout<<"[ "<<GET_PAGE_NO(temp->value,true)<<" ]"<<endl;
+                temp=temp->next;
+            }
+            if(check)cout<<"0 dirty pages!"<<endl;
         }
     };
     

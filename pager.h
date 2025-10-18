@@ -70,10 +70,10 @@ struct Pager{
                 memcpy(&rawPage,temp,PAGE_SIZE);
                 delete[] temp;
             }
-            cout<<"getting root page from main db.."<<endl;
+            // cout<<"getting root page from main db.."<<endl;
             RootPageNode* node = new RootPageNode();
-            cout<<"rawPage.pageNumber: "<<rawPage.pageNumber<<endl;
-            cout<<"rawPage.type: "<<rawPage.type<<endl;
+            // cout<<"rawPage.pageNumber: "<<rawPage.pageNumber<<endl;
+            // cout<<"rawPage.type: "<<rawPage.type<<endl;
             node->pageNumber = rawPage.pageNumber;
             node->type = static_cast<PageType>(rawPage.type); 
             // c++ stores in file as 0,1 on retrieving error if not typecast.
@@ -156,16 +156,16 @@ struct Pager{
             // cast to any page type since inJournal is at same offset in all page type structs
             counter++;
 
-            /*
-------------------------------------------------------------------------
+//             /*
+// ------------------------------------------------------------------------
 
             if(counter==2){
                 cout<<"FAILING WHILE FLUSHING TO MAIN DB"<<endl;
                 exit(EXIT_FAILURE);
             }
 
-------------------------------------------------------------------------
-            */
+// ------------------------------------------------------------------------
+//             */
             tem=tem->next;
         }
     }
@@ -194,7 +194,7 @@ struct Pager{
     }
 
     void write_back_header_to_journal(){
-        cout<<"writing header.."<<endl;
+        cout<<"writing header to journal.."<<endl;
         int fdj =this->file_descriptor_journal;
         int fd=this->file_descriptor;
 
@@ -205,7 +205,7 @@ struct Pager{
         }
         rollback_header header;
         header.magicNumber=MAGIC_NUMBER;
-        cout<<"header.numOfPages"<<i_numOfPages_g<<endl;
+        // cout<<"header.numOfPages"<<i_numOfPages_g<<endl;
         header.numOfPages=i_numOfPages_g;
         header.salt1=0; // for database versioning
         header.salt2=random_u32(); // for checksum
@@ -228,11 +228,11 @@ struct Pager{
     }
     void write_page_with_checksum(void* page) {
         
-        cout<<"while storing.."<<endl;
-        cout<<"page: "<<GET_PAGE_NO(page,true)<<endl;
-        // cout<<"pageTYpe: "<<GET_PAGE_TYPE(page,true)<<endl;
-        cout<<"rowcount: "<<GET_ROW_COUNT(page,true)<<endl;
-        // cout<<"salt2: "<<this->lruCache->salt2<<endl;
+        // cout<<"while storing.."<<endl;
+        // cout<<"page: "<<GET_PAGE_NO(page,true)<<endl;
+        // // cout<<"pageTYpe: "<<GET_PAGE_TYPE(page,true)<<endl;
+        // cout<<"rowcount: "<<GET_ROW_COUNT(page,true)<<endl;
+        // // cout<<"salt2: "<<this->lruCache->salt2<<endl;
         
 
         uint32_t cksum = crc32_with_salt(page,PAGE_SIZE,this->lruCache->salt1,this->lruCache->salt2);
@@ -262,6 +262,7 @@ struct Pager{
         if(this->lruCache->checkMagic!=MAGIC_NUMBER){
             write_back_header_to_journal();
         }
+        cout<<"logging page "<<GET_PAGE_NO(page,true)<<" orginal content to journal end.."<<endl;
         write_page_with_checksum(page);        
     }
 
