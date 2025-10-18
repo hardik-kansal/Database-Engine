@@ -9,34 +9,14 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 1. [Overview](#overview)
 2. [Main Data Structures](#main-data-structures)
 3. [Storage, Indexing, and On-Disk Format](#storage-indexing-and-on-disk-format)
-4. [Basic Workflow](#basic-workflow-with-function-references)
-5. [Transaction Support and Journal System](#transaction-support-and-journal-system)
-6. [Supported Operations (REPL)](#supported-operations-repl)
-7. [Time Complexity](#time-complexity)
-8. [Memory Management and Caching](#memory-management-and-caching)
-9. [Constants](#constants)
-10. [Maximum Values and Limits](#maximum-values-and-limits)
-11. [Getting Started](#getting-started)
-12. [Repository Layout](#repository-layout)
-13. [Notes](#notes)
-
-
----
-
-
-## Main Data Structures
-
-
-| Structure | Purpose | Fields | Notes |
-|-----------|---------|-------|------|
-| `RowSlot` | Points to one record in a page | `key` (uint64), `offset` (uint16), `length` (uint32) | One slot per record |
-| `pageNode / Page` | Non-root leaf/interior page | `pageNumber`, `type`, `rowCount`, `freeStart`, `freeEnd`, `slots[MAX_ROWS]`, `payload[MAX_PAYLOAD_SIZE]` | `pageNode` adds `dirty` flag |
-| `RootPageNode / RootPage` | Root page | Same as `pageNode` + `trunkStart` + `DatabaseVersion` | `dirty` flag added |
-| `TrunkPageNode / TrunkPage` | Free-list page | `rowCount`, `prevTrunkPage`, `tPages[NO_OF_TPAGES]` | `dirty` flag added |
-| `Pager` | Handles disk I/O for main and journal file | `getPage()`, `writePage()`, `flushAll()`, etc. | Manages endian conversion and LRU |
-| `LRUCache` | In-heap page cache | Hash map + doubly-linked list | Evicts least-recently-used pages |
-| `Bplustrees` | B+ tree implementation | `insert()`, `deleteKey()`, `search()`, `printTree()` | Handles leaf/internal splits, merges, borrowing |
-
+4. [Transaction Support and Journal System](#transaction-support-and-journal-system)
+5. [Supported Operations (REPL)](#supported-operations-repl)
+6. [Time Complexity](#time-complexity)
+7. [Constants](#constants)
+8. [Maximum Values and Limits](#maximum-values-and-limits)
+9. [Getting Started](#getting-started)
+10. [Repository Layout](#repository-layout)
+11. [Notes](#notes)
 
 
 ---
@@ -96,21 +76,22 @@ struct rollback_header {
 
 ### **Technical Details**
 
-**Why `fsync()`?**
-- **Durability Guarantee**: `fsync()` forces OS to flush buffered kernel data to disk
-- **Crash Safety**: Without `fsync()`, data might be lost in OS buffers during crash
-- **ACID Compliance**: Ensures "D" (Durability) property of transactions
 
-**Why Checksums?**
-- **Data Integrity**: Detects corruption during disk I/O or memory errors
-- **Rollback Safety**: Ensures journal pages are valid before restoring
-- **Silent Corruption Prevention**: Catches hardware/software errors that could corrupt data
-- **CRC32 Algorithm**: Fast, reliable error detection with low collision probability
-
-**Why Salt Values?**
-- **`salt1`**: Database versioning - allows schema evolution without breaking existing journals
-- **`salt2`**: Random checksum salt - prevents predictable checksum attacks
-- **Checksum Uniqueness**: `crc32_with_salt(page, PAGE_SIZE, salt1, salt2)` creates unique checksums
+>**Why `fsync()`?**
+>- **Durability Guarantee**: `fsync()` forces OS to flush buffered kernel data to disk
+>- **Crash Safety**: Without `fsync()`, data might be lost in OS buffers during crash
+>- **ACID Compliance**: Ensures "D" (Durability) property of transactions
+>
+>**Why Checksums?**
+>- **Data Integrity**: Detects corruption during disk I/O or memory errors
+>- **Rollback Safety**: Ensures journal pages are valid before restoring
+>- **Silent Corruption Prevention**: Catches hardware/software errors that could corrupt data
+>- **CRC32 Algorithm**: Fast, reliable error detection with low collision probability
+>
+>**Why Salt Values?**
+>- **`salt1`**: Database versioning - allows schema evolution without breaking existing journals
+>- **`salt2`**: Random checksum salt - prevents predictable checksum attacks
+>- **Checksum Uniqueness**: `crc32_with_salt(page, PAGE_SIZE, salt1, salt2)` creates unique checksums
 
 ### **Transaction Modes**
 
@@ -164,8 +145,8 @@ i 200 data4           # Immediately committed
 - **Print Dirty pages**: `.plru`
   - Prints dirty pages in order of last recently used.
 
-- **Meta**: `.exit`
-  - Closes database connections, and exits the application.
+- **Close database**: `.exit`
+  - Closes database connections, and exits the application. (also manually allowed)
 
 
 ---
