@@ -285,13 +285,12 @@ uint32_t random_u32() {
     close(fd);
     return val;
 }
-uint32_t crc32_with_salt(const void *data, size_t len, uint32_t salt1, uint32_t salt2) {
+uint32_t crc32_with_salt(const void *data, size_t len, uint32_t salt) {
     // Combine salts and data
     uint32_t crc = crc32(0L, Z_NULL, 0);
 
     // Mix salts first
-    crc = crc32(crc, (const Bytef *)&salt1, sizeof(salt1));
-    crc = crc32(crc, (const Bytef *)&salt2, sizeof(salt2));
+    crc = crc32(crc, (const Bytef *)&salt, sizeof(salt));
 
     // Then mix data
     crc = crc32(crc, (const Bytef *)data, len);

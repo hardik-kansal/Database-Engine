@@ -7,16 +7,15 @@ A lightweight key–value store in C++ using a single-file slotted storage forma
 ## Contents
 
 1. [Overview](#overview)
-2. [Main Data Structures](#main-data-structures)
-3. [Storage, Indexing, and On-Disk Format](#storage-indexing-and-on-disk-format)
-4. [Transaction Support and Journal System](#transaction-support-and-journal-system)
-5. [Supported Operations (REPL)](#supported-operations-repl)
-6. [Time Complexity](#time-complexity)
-7. [Constants](#constants)
-8. [Maximum Values and Limits](#maximum-values-and-limits)
-9. [Getting Started](#getting-started)
-10. [Repository Layout](#repository-layout)
-11. [Notes](#notes)
+2. [Storage, Indexing, and On-Disk Format](#storage-indexing-and-on-disk-format)
+3. [Transaction Support and Journal System](#transaction-support-and-journal-system)
+4. [Supported Operations (REPL)](#supported-operations-repl)
+5. [Time Complexity](#time-complexity)
+6. [Constants](#constants)
+7. [Maximum Values and Limits](#maximum-values-and-limits)
+8. [Getting Started](#getting-started)
+9. [Repository Layout](#repository-layout)
+10. [Notes](#notes)
 
 
 ---
@@ -91,7 +90,7 @@ struct rollback_header {
 >**Why Salt Values?**
 >- **`salt1`**: Database versioning - allows schema evolution without breaking existing journals
 >- **`salt2`**: Random checksum salt - prevents predictable checksum attacks
->- **Checksum Uniqueness**: `crc32_with_salt(page, PAGE_SIZE, salt1, salt2)` creates unique checksums
+>- **Checksum Uniqueness**: `crc32_with_salt(page, PAGE_SIZE, salt2)` creates unique checksums
 
 ### **Transaction Modes**
 

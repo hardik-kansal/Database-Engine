@@ -156,16 +156,16 @@ struct Pager{
             // cast to any page type since inJournal is at same offset in all page type structs
             counter++;
 
-//             /*
-// ------------------------------------------------------------------------
+            /*
+------------------------------------------------------------------------
 
             if(counter==2){
                 cout<<"FAILING WHILE FLUSHING TO MAIN DB"<<endl;
                 exit(EXIT_FAILURE);
             }
 
-// ------------------------------------------------------------------------
-//             */
+------------------------------------------------------------------------
+            */
             tem=tem->next;
         }
     }
@@ -207,7 +207,7 @@ struct Pager{
         header.magicNumber=MAGIC_NUMBER;
         // cout<<"header.numOfPages"<<i_numOfPages_g<<endl;
         header.numOfPages=i_numOfPages_g;
-        header.salt1=0; // for database versioning
+        header.salt1=databaseVersion+1; // for database versioning
         header.salt2=random_u32(); // for checksum
 
 
@@ -224,6 +224,7 @@ struct Pager{
         this->lruCache->salt2=header.salt2;
         this->lruCache->checkMagic=MAGIC_NUMBER;
         this->lruCache->no_of_pages_in_journal=0;
+        cout<<"version: "<<header.salt1<<endl;
         
     }
     void write_page_with_checksum(void* page) {
@@ -235,7 +236,7 @@ struct Pager{
         // // cout<<"salt2: "<<this->lruCache->salt2<<endl;
         
 
-        uint32_t cksum = crc32_with_salt(page,PAGE_SIZE,this->lruCache->salt1,this->lruCache->salt2);
+        uint32_t cksum = crc32_with_salt(page,PAGE_SIZE,this->lruCache->salt2);
         // cout<<"cksum: "<<cksum<<endl;
         size_t total_len = PAGE_SIZE + sizeof(cksum);
         size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;

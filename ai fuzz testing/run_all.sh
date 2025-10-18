@@ -7,6 +7,7 @@ chmod +x "$dir"/*.sh || true
 
 tests=(
   simple_basic_mix_01.sh
+  freepage_trunk_start_01.sh
   txn_insert_delete_01.sh
   txn_interleaved_commits_01.sh
   txn_large_payloads_01.sh

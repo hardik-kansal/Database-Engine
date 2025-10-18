@@ -105,7 +105,8 @@ void flushAll_journal(int fdj,int fd){
         if(pread(fdj, &stored_cksum, sizeof(stored_cksum), offset + PAGE_SIZE) < 0) { exit(EXIT_FAILURE); }
 
         // Verify checksum
-        uint32_t calc = crc32_with_salt(pagebuf, PAGE_SIZE, 0, header.salt2);
+        // salt1 is datbaseversion
+        uint32_t calc = crc32_with_salt(pagebuf, PAGE_SIZE, header.salt2);
         if(calc != stored_cksum) {
             cerr << "Journal checksum mismatch, aborting rollback" << endl;
             exit(EXIT_FAILURE);
@@ -171,9 +172,11 @@ bool rollback_journal(int fdj,int fd,uint32_t* i_numOfPages){
         return false;
     }
     cout<<"Commit msg check passed!"<<endl;
+
     rollback_header header;
     if(lseek(fdj, 0, SEEK_SET) < 0) { exit(EXIT_FAILURE); }
     if(read(fdj, &header, sizeof(header)) < 0) { exit(EXIT_FAILURE); }
+
     // cout<<"header.numOfPages: "<<header.numOfPages<<endl;
     if(header.numOfPages==0){
         cout<<"0 pages to be restored"<<endl;
@@ -249,6 +252,14 @@ void commit_journal(int fdj){
     if(lseek(fdj,0,SEEK_END)<0)exit(EXIT_FAILURE);
     if(write(fdj,&MAGIC_NUMBER,8)<0)exit(EXIT_FAILURE);
 } 
+uint32_t get_database_version(int fdj){
+    uint32_t databaseVersion=0;
+    // salt1 stored at 12
+    if(lseek(fdj,12,SEEK_SET)<0)exit(EXIT_FAILURE);
+    if(read(fdj,&databaseVersion,4)<0)exit(EXIT_FAILURE);
+    // cout<<"stored: "<<databaseVersion<<endl;
+    return databaseVersion;
+} 
 
 void create_journal(Table* table){
     int fdj=table->pager->file_descriptor_journal;
@@ -275,6 +286,8 @@ void create_journal(Table* table){
 ---------------------------------------------------------------  
 */
 
+    cout<<"   -> writing database version to Main db.."<<endl;
+    table->pager->getRootPage()->databaseVersion=get_database_version(fdj);
     cout<<"   -> writing dirty pages to Main db.."<<endl;
     table->pager->flushAll();
     cout<<"   -> writing 'no of pages' to Main db end.."<<endl;
@@ -392,8 +405,7 @@ executeResult execute_statement(Statement* statement, Table* table,bool COMMIT_N
             // cout << "   -> Executing select by ID for key: " << statement->row.key << endl;
             return execute_select_id(statement, table);
         case (STATEMENT_DELETE):
-            return execute_delete(statement, table,COMMIT_NOW);
-        
+            return execute_delete(statement, table,COMMIT_NOW);       
     }
     return EXECUTE_SUCCESS;
 }
@@ -433,7 +445,7 @@ int main(){
         Statement* statement=new Statement();
         switch (prepare_statement(inputBuffer,statement)){
             case PREPARE_UNRECOGNIZED_STATEMENT:
-                cerr<<"Error: Unrecognized statement: " << inputBuffer->buffer << endl;
+                cerr<<"Error: Unrecognized statement"<< endl;
                 statement->type = STATEMENT_UNRECOGNIZED; // Indicate that statement is unrecognized
                 break; // Don't exit, allow user to try again.
             case PREPARE_SUCCESS:

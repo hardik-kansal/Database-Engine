@@ -1,0 +1,41 @@
+opening db connection..
+   -> Initializing  table..
+   -> Initializing  pager..
+     (checking existing journal file..)
+Journal file is empty, skipping rollback
+Journal invalid!
+num of pages in Main db fetched from end: 0
+     LRU Cache initialzed and added to pager!
+   -> Initializing  Bplustree..
+     checking if root node exists in Main db.. 
+     first time root node created!
+     root inserted in LRU Cache
+db >
+=>    Transaction began !
+
+db >   -> Inserting key: 10 with payload: valueA
+writing header to journal..
+version: 1
+logging page 1 orginal content to journal end..
+db >   -> Key 5 not found.
+db >   -> Inserting key: 20 with payload: valueB
+db >   -> Inserting key: 30 with payload: valueC
+db >db >[ lk: 20 lk: 30 ]    
+db >
+commiting Journal and Main db..
+   -> forced flushing journal contents..
+   -> added commit mark to end of journal file
+   -> again forcefully flushing journal contents..
+   -> writing database version to Main db..
+   -> writing dirty pages to Main db..
+   -> writing 'no of pages' to Main db end..
+   -> forced flushing Main db contents..
+   -> MAGIC_NUMBER in journal header corrupted
+    -> :SUCCESS 
+
+=>    Transaction committed !
+
+db >[ lk: 20 lk: 30 ]    
+db >
+Closing Main db, Journal db connection..
+
