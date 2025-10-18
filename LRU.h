@@ -27,6 +27,12 @@ public:
         unordered_map<uint32_t ,Node*> m;
         Node* head;
         Node* tail;
+        uint32_t salt1;
+        uint32_t salt2;
+        uint32_t checkMagic;
+        uint16_t no_of_pages_in_journal;
+
+
         void insertStart(Node* newNode){
                     newNode->prev=head;
                     Node* nNode=head->next;

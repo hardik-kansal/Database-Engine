@@ -26,7 +26,7 @@ class Bplustrees{
                 this->root->type = PAGE_TYPE_LEAF;
                 this->root->rowCount = 0;
                 this->root->dirty = true;
-                this->root->freeStart=FREE_START_DEFAULT-sizeof(uint32_t);
+                this->root->freeStart=FREE_START_DEFAULT_ROOT;
                 this->root->freeEnd=FREE_END_DEFAULT;
                 this->root->trunkStart=1;
                 pager->numOfPages=1;
@@ -150,8 +150,11 @@ class Bplustrees{
             uint32_t payloadLength = strlen(payload) + 1; // +1 for null terminator
             
             if (canInsertRow(leaf, payloadLength)) {
-                insertRowAt(leaf, index, key, payload, payloadLength);
                 leaf->dirty = true;
+                if(!leaf->inJournal){
+                    pager->write_back_to_journal(leaf);leaf->inJournal=true;
+                }
+                insertRowAt(leaf, index, key, payload, payloadLength);
             } else {
                 // Need to split the page
                 splitLeafAndInsert(leaf, index, key, payload, payloadLength, path);
@@ -207,11 +210,15 @@ class Bplustrees{
             // Calculate split point based on payload capacity
             uint16_t splitIndex = findSplitIndex(leaf);
             
-            // Move half the rows to the new leaf
+
+            leaf->dirty = true;
+            if(!leaf->inJournal){
+                pager->write_back_to_journal(leaf);leaf->inJournal=true;
+            }
             
             // Insert the new row in the appropriate page
             if (index < splitIndex) {
-// this means leaf have new element, so mving rows will be differrnt.
+// this means leaf have new element, so moving rows will be different.
             moveRowsToNewLeaf(leaf, newLeaf, splitIndex-1);
             insertRowAt(leaf, index, key, payload, payloadLength);
 
@@ -299,8 +306,7 @@ class Bplustrees{
             newLeaf->freeStart = newPayloadOffset;
             oldLeaf->rowCount = splitIndex;            
             oldLeaf->type = PAGE_TYPE_LEAF;
-            oldLeaf->dirty = true;
-            newLeaf->dirty = true;
+
         }
         
         // Create a new root when splitting the root page
@@ -336,9 +342,12 @@ class Bplustrees{
             
             if (canInsertRow(internal, sizeof(uint32_t))) {
                 // Insert into internal node
-                
-                insertInternalRowAt(internal, index, key, rightPageNumber);
                 internal->dirty = true;
+                if(!internal->inJournal){
+                    pager->write_back_to_journal(internal);internal->inJournal=true;
+                }
+                insertInternalRowAt(internal, index, key, rightPageNumber);
+
             } else {
                 // Split internal node
                 
@@ -417,6 +426,10 @@ class Bplustrees{
             // Move half the entries to new internal node
             
             uint64_t newKey=0;
+            internal->dirty = true;
+            if(!internal->inJournal){
+                pager->write_back_to_journal(internal);internal->inJournal=true;
+            }
             // Insert the new entry
             if (index < splitIndex) {
                  newKey=internal->slots[splitIndex-1].key;
@@ -475,9 +488,6 @@ class Bplustrees{
             if(rowsToMove>0)newInternal->rowCount = rowsToMove;
             else newInternal->rowCount = 0;
             newInternal->freeStart = payloadOffset-length;
-
-            oldInternal->dirty = true;
-            newInternal->dirty = true;
         }
 
         // Delete a key from the B+ tree
@@ -507,8 +517,11 @@ class Bplustrees{
         // Delete a key from a leaf node
         void deleteFromLeaf(pageNode* leaf, uint16_t index, vector<pageNode*>& path,uint64_t key) {
             // Remove the key from the leaf
-            removeRowFromLeaf(leaf, index);
             leaf->dirty = true;
+            if(!leaf->inJournal){
+                pager->write_back_to_journal(leaf);leaf->inJournal=true;
+            }
+            removeRowFromLeaf(leaf, index);
             
             // Special case: if root is a leaf and becomes empty, that's fine
             if (leaf == (pageNode*)root && leaf->rowCount == 0) {
@@ -558,7 +571,10 @@ class Bplustrees{
             
             pageNode* parent = path[path.size() - 2];
             uint16_t leafIndex = findChildIndex(parent, leaf);  
-            
+            parent->dirty = true;
+            if(!parent->inJournal){
+                pager->write_back_to_journal(parent);parent->inJournal=true;
+            }
             // Safety check - if leafIndex is 0 and we couldn't find the child, skip
             if (leafIndex==parent->rowCount+1) {
                 return;
@@ -568,6 +584,10 @@ class Bplustrees{
             if (leafIndex > 0) {
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex - 1));
                 if (leftSibling && leftSibling->rowCount > M) {
+                    leftSibling->dirty = true;
+                    if(!leftSibling->inJournal){
+                        pager->write_back_to_journal(leftSibling);leftSibling->inJournal=true;
+                    }
                     borrowFromLeftLeaf(leaf, leftSibling, parent, leafIndex - 1);
                     return;
                 }
@@ -577,6 +597,10 @@ class Bplustrees{
             if (leafIndex < parent->rowCount) {
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex + 1));
                 if (rightSibling && rightSibling->rowCount > M) {
+                    rightSibling->dirty = true;
+                    if(!rightSibling->inJournal){
+                        pager->write_back_to_journal(rightSibling);rightSibling->inJournal=true;
+                    }
                     borrowFromRightLeaf(leaf, rightSibling, parent, leafIndex);
                     return;
                 }
@@ -588,6 +612,10 @@ class Bplustrees{
                 // Merge with left sibling
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex - 1));
                 if (leftSibling) {
+                    leftSibling->dirty = true;
+                    if(!leftSibling->inJournal){
+                        pager->write_back_to_journal(leftSibling);leftSibling->inJournal=true;
+                    }
                     mergeLeafNodes(leftSibling, leaf, parent, leafIndex - 1, path);
                 }
                 // IF LeafIndex==0rowCount means righmost child
@@ -595,6 +623,10 @@ class Bplustrees{
                 // Merge with right sibling
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, leafIndex + 1));
                 if (rightSibling) {
+                    rightSibling->dirty = true;
+                    if(!rightSibling->inJournal){
+                        pager->write_back_to_journal(rightSibling);rightSibling->inJournal=true;
+                    }
                     mergeLeafNodes(leaf, rightSibling, parent, leafIndex, path);
                 }
             }
@@ -627,8 +659,6 @@ class Bplustrees{
             
             // Update parent key
             parent->slots[parentIndex].key = leaf->slots[0].key;
-            parent->dirty = true;
-            leftSibling->dirty = true;
         }
         
         // Borrow a key from right leaf sibling
@@ -646,8 +676,6 @@ class Bplustrees{
             
             // Update parent key
             parent->slots[parentIndex].key = rightSibling->slots[0].key;
-            parent->dirty = true;
-            rightSibling->dirty = true;
         }
         
         // Merge two leaf nodes
@@ -671,8 +699,6 @@ class Bplustrees{
             removeRowFromInternal(parent, parentIndex);
             
 
-            parent->dirty = true;
-
             if(parent->rowCount==0 && path.size()==2){
                 uint32_t page_no=leftLeaf->pageNumber;
                 root=(RootPageNode*)leftLeaf;
@@ -680,9 +706,6 @@ class Bplustrees{
                 root->pageNumber=1;
                 pager->lruCache->put(1,root);
                 freePage(page_no);
-                
-
-                return;
             }
             // Check if parent is underflowed and handle it
             if (parent->rowCount < M && path.size() > 2) {
@@ -692,9 +715,6 @@ class Bplustrees{
             
             // Free the right leaf page
             freePage(rightLeaf->pageNumber); //right leaf changed to trunkPage
-            
-
-            leftLeaf->dirty = true;
         }
         
         
@@ -722,6 +742,11 @@ class Bplustrees{
             if (path.size() < 2) return; // Safety check
             
             pageNode* parent = path[path.size() - 2];
+            parent->dirty = true;
+            if(!parent->inJournal){
+                pager->write_back_to_journal(parent);parent->inJournal=true;
+            }
+
             uint16_t internalIndex = findChildIndex(parent, internal);
             
             // Safety check - if internalIndex is 0 and we couldn't find the child, skip
@@ -733,6 +758,10 @@ class Bplustrees{
             if (internalIndex > 0) {
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex - 1));
                 if (leftSibling && leftSibling->rowCount > M) {
+                    leftSibling->dirty = true;
+                    if(!leftSibling->inJournal){
+                        pager->write_back_to_journal(leftSibling);leftSibling->inJournal=true;
+                    }
                     borrowFromLeftInternal(internal, leftSibling, parent, internalIndex - 1);
                     return;
                 }
@@ -743,6 +772,10 @@ class Bplustrees{
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex + 1));
 
                 if (rightSibling && rightSibling->rowCount > M) {
+                    rightSibling->dirty = true;
+                    if(!rightSibling->inJournal){
+                        pager->write_back_to_journal(rightSibling);rightSibling->inJournal=true;
+                    }
                     borrowFromRightInternal(internal, rightSibling, parent, internalIndex,parentIndex_lcpageNumber);
                     return;
                 }
@@ -753,14 +786,20 @@ class Bplustrees{
                 // Merge with left sibling
                 pageNode* leftSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex - 1));
                 if (leftSibling) {
-                    
+                    leftSibling->dirty = true;
+                    if(!leftSibling->inJournal){
+                        pager->write_back_to_journal(leftSibling);leftSibling->inJournal=true;
+                    }
                     mergeInternalNodes(leftSibling, internal, parent, internalIndex - 1, path);
                 }
             } else if (internalIndex < parent->rowCount) {
                 // Merge with right sibling
                 pageNode* rightSibling = pager->getPage(pager->getPageNoPayload(parent, internalIndex + 1));
                 if (rightSibling) {
-                    
+                    rightSibling->dirty = true;
+                    if(!rightSibling->inJournal){
+                        pager->write_back_to_journal(rightSibling);rightSibling->inJournal=true;
+                    }
                     mergeInternalNodes(internal, rightSibling, parent, internalIndex, path);
                 }
             }
@@ -806,9 +845,6 @@ class Bplustrees{
             leftSibling->rowCount--;
             leftSibling->freeStart=leftSibling->slots[leftSibling->rowCount].offset;
             
-            parent->dirty = true;
-            internal->dirty=true;
-            leftSibling->dirty = true;
         }
         
         // Borrow a key from right internal sibling
@@ -825,9 +861,6 @@ class Bplustrees{
             // Remove the key from right sibling
             removeInternalAtStarting(rightSibling);
             
-            parent->dirty = true;
-            internal->dirty=true;
-            rightSibling->dirty = true;
         }
         
         // Merge two internal nodes
@@ -851,11 +884,9 @@ class Bplustrees{
 
             uint32_t parentIndex_lcpageNumber=pager->getPageNoPayload(parent,0);
 
-            parent->dirty = true;
-            // since root payload starts from PAGE_SIZE -sizeof(uint32_t) ->trunkStart
             if (parent->pageNumber==1 && parent->rowCount == 0) {
                 uint32_t page_no=leftInternal->pageNumber;
-                root->freeStart=leftInternal->freeStart-sizeof(uint32_t);
+                root->freeStart=leftInternal->freeStart-ROOT_BACK_HEADER_SIZE;
                 memcpy(root->slots,leftInternal->slots,sizeof(RowSlot)*(leftInternal->rowCount));
                 memcpy(((char*)root)+root->freeStart,((char*)leftInternal)+leftInternal->freeStart,PAGE_SIZE-leftInternal->freeStart);
                 root->pageNumber=1;
@@ -863,11 +894,10 @@ class Bplustrees{
                 root->trunkStart=trunkStart;
                 root->type=PAGE_TYPE_INTERIOR;
                 for(uint16_t i=0;i<leftInternal->rowCount;i++){
-                    root->slots[i].offset-=sizeof(uint32_t);
+                    root->slots[i].offset-=ROOT_BACK_HEADER_SIZE;
                 }
                 freePage(page_no);
                 
-                return;
             }
             // Check if parent is underflowed and handle it
             else if (parent->rowCount < M && path.size() > 2) {
@@ -878,7 +908,6 @@ class Bplustrees{
             // Free the right internal page
             freePage(rightInternal->pageNumber);
             
-            leftInternal->dirty = true;
         }
         
         void createNewTrunkPage(uint32_t pageNumber){
@@ -894,6 +923,7 @@ class Bplustrees{
         }
         // Free a page (add to trunk)
         void freePage(uint32_t pageNumber) {
+            pager->numOfPages--;
             if (trunkStart == 1) {
                 // Create first trunk page
                 createNewTrunkPage(pageNumber);
@@ -902,7 +932,11 @@ class Bplustrees{
                 TrunkPageNode* trunk = pager->getTrunkPage(trunkStart);
                 if (trunk->rowCount < NO_OF_TPAGES) {
                     trunk->tPages[trunk->rowCount++] = pageNumber;
+
                     trunk->dirty = true;
+                    if(!trunk->inJournal){
+                        pager->write_back_to_journal(trunk);trunk->inJournal=true;
+                    }
                 } else {
                     // Create new trunk page
                     createNewTrunkPage(pageNumber);

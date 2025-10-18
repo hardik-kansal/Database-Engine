@@ -6,23 +6,22 @@
 
 
 
-
-// total size -> 24 bytes
+// total size -> 20 bytes
 struct Pager{
 
     int file_descriptor;  // 4 bytes
-    off_t file_length; // 8 bytes
+    int file_descriptor_journal;  // 4 bytes
+
     LRUCache* lruCache; // 8 bytes
     uint32_t numOfPages; // 4 bytes
 
 
     // off_t long long int
     pageNode* getPage(uint32_t page_no){
-        if(page_no>this->numOfPages)return nullptr;
         if(this->lruCache->get(page_no)!=nullptr)return (pageNode*)this->lruCache->get(page_no);
         else{
-            off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
-            if(offset<0)exit(EXIT_FAILURE);
+            off_t success=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
+            if(success<0)exit(EXIT_FAILURE);
             Page rawPage{};
             ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
             if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
@@ -71,8 +70,10 @@ struct Pager{
                 memcpy(&rawPage,temp,PAGE_SIZE);
                 delete[] temp;
             }
-            
+            cout<<"getting root page from main db.."<<endl;
             RootPageNode* node = new RootPageNode();
+            cout<<"rawPage.pageNumber: "<<rawPage.pageNumber<<endl;
+            cout<<"rawPage.type: "<<rawPage.type<<endl;
             node->pageNumber = rawPage.pageNumber;
             node->type = static_cast<PageType>(rawPage.type); 
             // c++ stores in file as 0,1 on retrieving error if not typecast.
@@ -82,13 +83,14 @@ struct Pager{
             memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *MAX_ROWS); 
             memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE_ROOT);
             node->trunkStart=rawPage.trunkStart;         
-            node->dirty=false;           
+            node->dirty=false; 
+            node->databaseVersion=rawPage.databaseVersion;          
             this->lruCache->put(1,node);
+            
             return node;
         }
     }
     TrunkPageNode* getTrunkPage(uint32_t page_no){
-        if(page_no>this->numOfPages)return nullptr;
         if(this->lruCache->get(page_no)!=nullptr)return (TrunkPageNode*)this->lruCache->get(page_no);
         else{
             off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
@@ -141,9 +143,29 @@ struct Pager{
     void flushAll(){
         uint32_t count=this->lruCache->count;
         Node* tem=this->lruCache->head->next;
+        int counter=0;
         for(uint32_t i=0;i<count;i++){
             if (GET_PAGE_NO(tem->value,true)==1){this->writePage(tem->value);}
             else if(GET_DIRTY(tem->value,PAGE_SIZE+1)){this->writePage(tem->value);}
+            
+            // EACH Query or transaction once done needed to unmark 
+            // ELSE seperate queries will consider flushAgain or consider them in their journal.
+        
+            ((pageNode*)tem->value)->dirty=false;
+            ((pageNode*)tem->value)->inJournal=false;
+            // cast to any page type since inJournal is at same offset in all page type structs
+            counter++;
+
+            /*
+------------------------------------------------------------------------
+
+            if(counter==2){
+                cout<<"FAILING WHILE FLUSHING TO MAIN DB"<<endl;
+                exit(EXIT_FAILURE);
+            }
+
+------------------------------------------------------------------------
+            */
             tem=tem->next;
         }
     }
@@ -169,6 +191,78 @@ struct Pager{
             else memcpy(&value, ((char*)curr) + ((pageNode*)curr)->freeStart, sizeof(uint32_t)); 
         }
         return value;
+    }
+
+    void write_back_header_to_journal(){
+        cout<<"writing header.."<<endl;
+        int fdj =this->file_descriptor_journal;
+        int fd=this->file_descriptor;
+
+        if(lseek(fd,PAGE_SIZE-DATABASE_VER_BACK_SIZE,SEEK_SET)<0){exit(EXIT_FAILURE);}
+        uint32_t databaseVersion=0;
+        if(read(fd,&databaseVersion,4)<0 && this->numOfPages>1){
+            exit(EXIT_FAILURE);
+        }
+        rollback_header header;
+        header.magicNumber=MAGIC_NUMBER;
+        cout<<"header.numOfPages"<<i_numOfPages_g<<endl;
+        header.numOfPages=i_numOfPages_g;
+        header.salt1=0; // for database versioning
+        header.salt2=random_u32(); // for checksum
+
+
+        size_t total_len = ROLLBACK_HEADER_SIZE;
+        size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+    
+        uint8_t buffer[padded_len];
+        memset(buffer, 0, padded_len);
+        memcpy(buffer, &header,ROLLBACK_HEADER_SIZE );
+        if(lseek(fdj,0,SEEK_SET)<0){exit(EXIT_FAILURE);}
+        if(write(fdj, buffer, padded_len)<0){exit(EXIT_FAILURE);}
+
+        this->lruCache->salt1=header.salt1;
+        this->lruCache->salt2=header.salt2;
+        this->lruCache->checkMagic=MAGIC_NUMBER;
+        this->lruCache->no_of_pages_in_journal=0;
+        
+    }
+    void write_page_with_checksum(void* page) {
+        
+        cout<<"while storing.."<<endl;
+        cout<<"page: "<<GET_PAGE_NO(page,true)<<endl;
+        // cout<<"pageTYpe: "<<GET_PAGE_TYPE(page,true)<<endl;
+        cout<<"rowcount: "<<GET_ROW_COUNT(page,true)<<endl;
+        // cout<<"salt2: "<<this->lruCache->salt2<<endl;
+        
+
+        uint32_t cksum = crc32_with_salt(page,PAGE_SIZE,this->lruCache->salt1,this->lruCache->salt2);
+        // cout<<"cksum: "<<cksum<<endl;
+        size_t total_len = PAGE_SIZE + sizeof(cksum);
+        size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+    
+        uint8_t buffer[padded_len];
+        memset(buffer, 0, padded_len);
+    
+        memcpy(buffer, page, PAGE_SIZE);
+        memcpy(buffer + PAGE_SIZE, &cksum, sizeof(cksum));
+
+        size_t total_len_header = ROLLBACK_HEADER_SIZE;
+        size_t padded_len_header = ((total_len_header + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+    
+    
+        int fdj=this->file_descriptor_journal;
+        uint16_t i=this->lruCache->no_of_pages_in_journal;
+        if(lseek(fdj,padded_len_header+padded_len*i,SEEK_SET)<0){exit(EXIT_FAILURE);}
+        if(write(fdj, buffer, padded_len)<0){exit(EXIT_FAILURE);}
+        this->lruCache->no_of_pages_in_journal++;
+
+    }
+
+    void write_back_to_journal(void* page){
+        if(this->lruCache->checkMagic!=MAGIC_NUMBER){
+            write_back_header_to_journal();
+        }
+        write_page_with_checksum(page);        
     }
 
  };

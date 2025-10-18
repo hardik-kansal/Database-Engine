@@ -4,6 +4,8 @@
 const uint16_t PAGE_SIZE = 4096;
 const uint16_t PAGE_HEADER_SIZE = 14;
 #define MAX_ROWS  4
+#define SECTOR_SIZE  512
+
 
 
 struct RowSlot {
@@ -17,10 +19,21 @@ const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE
                                 - PAGE_HEADER_SIZE  
                                 - sizeof(RowSlot) * MAX_ROWS ;
 const uint16_t FREE_START_DEFAULT = PAGE_SIZE;
-const uint16_t MAX_PAYLOAD_SIZE_ROOT= MAX_PAYLOAD_SIZE-sizeof(uint32_t);// trunkstart
-const uint16_t FREE_START_DEFAULT_ROOT = PAGE_SIZE-sizeof(uint32_t);
+// trunkstart, datbaseVersioning
+const uint16_t ROOT_BACK_HEADER_SIZE=2*sizeof(uint32_t);
+const uint16_t TRUNK_START_BACK_SIZE=ROOT_BACK_HEADER_SIZE;
+const uint16_t DATABASE_VER_BACK_SIZE=ROOT_BACK_HEADER_SIZE-sizeof(uint32_t);
 
-const uint16_t FREE_END_DEFAULT =PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
+
+const uint16_t MAX_PAYLOAD_SIZE_ROOT= PAGE_SIZE 
+                                - PAGE_HEADER_SIZE  
+                                - sizeof(RowSlot) * MAX_ROWS 
+                                - ROOT_BACK_HEADER_SIZE ;
+
+
+const uint16_t FREE_START_DEFAULT_ROOT = PAGE_SIZE-ROOT_BACK_HEADER_SIZE;
+
+const uint16_t FREE_END_DEFAULT = PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
 // 56 or 0x3800 in little endian, each hex 4bits, 1 byte no endianess
 const uint16_t NO_OF_TPAGES=(PAGE_SIZE-16)/4;
 
@@ -44,8 +57,9 @@ struct pageNode {
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
     char payload[MAX_PAYLOAD_SIZE];
     bool dirty;
+    bool inJournal;
 }__attribute__((packed));
-static_assert(sizeof(pageNode)== PAGE_SIZE+1, "pageNode SIZE MISMATCH");
+static_assert(sizeof(pageNode)== PAGE_SIZE+2, "pageNode SIZE MISMATCH");
 
 
 struct Row_schema{
@@ -88,8 +102,9 @@ struct TrunkPageNode {
     uint32_t prevTrunkPage; //4 
     uint32_t tPages[NO_OF_TPAGES]; 
     bool dirty;
+    bool inJournal;
 }__attribute__((packed));
-static_assert(sizeof(TrunkPageNode)== PAGE_SIZE+1, "TrunkPageNode SIZE MISMATCH");
+static_assert(sizeof(TrunkPageNode)== PAGE_SIZE+2, "TrunkPageNode SIZE MISMATCH");
 
 
 
@@ -102,6 +117,7 @@ struct RootPage {
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
     char payload[MAX_PAYLOAD_SIZE_ROOT];
     uint32_t trunkStart;
+    uint32_t databaseVersion;
 }__attribute__((packed));
 static_assert(sizeof(RootPage)== PAGE_SIZE, "RootPage SIZE MISMATCH");
 
@@ -115,14 +131,29 @@ struct RootPageNode {
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
     char payload[MAX_PAYLOAD_SIZE_ROOT];
     uint32_t trunkStart;
+    uint32_t databaseVersion;
     // till now ->pagesize
     bool dirty;
+    bool inJournal;
 }__attribute__((packed));
-static_assert(sizeof(RootPageNode)== PAGE_SIZE+1, "RootPageNode SIZE MISMATCH");
+static_assert(sizeof(RootPageNode)== PAGE_SIZE+2, "RootPageNode SIZE MISMATCH");
 
 
 
 // All equivalent nodes have same size, else disk pages and in memory pages would differ.
-// bool dirty must be at last and at offset PAGE_SIZE 
+// bool dirty must be  at offset PAGE_SIZE 
+
+// 20 bytes
+struct rollback_header{
+    uint64_t magicNumber; //8 bytes
+    uint32_t numOfPages; // 4
+    uint32_t salt1; //4 
+    uint32_t salt2; //4
+}__attribute__((packed));
+
+const uint16_t ROLLBACK_HEADER_SIZE =sizeof(rollback_header); // 20 bytes
+
+
+
 
 #endif

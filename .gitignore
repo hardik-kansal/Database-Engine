@@ -1,5 +1,5 @@
 a.out
 main
 dbms
-f1.db
+*.db
 *.h.gch
