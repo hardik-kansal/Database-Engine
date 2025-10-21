@@ -9,6 +9,7 @@
 #include <fcntl.h> //open(), O_CREAT
 #include "enums.h"
 #include <zlib.h>
+#include <papi.h>
 const uint64_t MAGIC_NUMBER=16102004;
 uint32_t i_numOfPages_g=0;
 

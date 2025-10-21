@@ -325,7 +325,7 @@ void close_db(Table* table){
 MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
     if (strcmp(input_buffer->buffer, ".exit") == 0) {
         close_db(table);
-        exit(EXIT_SUCCESS);
+        return META_COMMAND_SUCCESS;
     }
     else if (strcmp(input_buffer->buffer,".bt")==0){
         if(table->pager->getRootPage()->rowCount!=0){
@@ -416,6 +416,32 @@ executeResult execute_statement(Statement* statement, Table* table,bool COMMIT_N
 
 
 int main(){
+
+    if (PAPI_library_init(PAPI_VER_CURRENT) != PAPI_VER_CURRENT) {
+        std::cerr << "PAPI initialization error!" << std::endl;
+        return -1;
+    }
+
+    int EventSet = PAPI_NULL;
+    if (PAPI_create_eventset(&EventSet) != PAPI_OK) {
+        std::cerr << "Failed to create event set" << std::endl;
+        return -1;
+    }
+
+    // Add events (skip L3 hits if unsupported)
+    PAPI_add_event(EventSet, PAPI_L1_DCM); // L1 data cache misses
+    PAPI_add_event(EventSet, PAPI_L1_DCH); // L1 data cache hits
+    PAPI_add_event(EventSet, PAPI_L2_DCM); // L2 data cache misses
+    PAPI_add_event(EventSet, PAPI_L2_DCH); // L2 data cache hits
+
+    long long values[4];
+
+    // Start counting
+    if (PAPI_start(EventSet) != PAPI_OK) {
+        std::cerr << "Failed to start counters" << std::endl;
+        return -1;
+    }
+
     bool COMMIT_NOW=true;
     cout<<"opening db connection.."<<endl;
     Table * table=create_db();
@@ -436,7 +462,24 @@ int main(){
                     COMMIT_NOW=true;
                     break;
                 case META_COMMAND_SUCCESS:
-                    break;
+                    // Stop counters
+                    if (PAPI_stop(EventSet, values) != PAPI_OK) {
+                        std::cerr << "Failed to stop counters" << std::endl;
+                        return -1;
+                    }
+
+                    cout << "L1 Data Cache Misses: " << values[0] << "\n";
+                    cout << "L1 Data Cache Hits: " << values[1] << "\n";
+                    cout << "L2 Data Cache Misses: " << values[2] << "\n";
+                    cout << "L2 Data Cache Hits: " << values[3] << "\n";
+
+                    // Hit rates
+                    double l1_hit_rate = (double)values[1] / (values[0] + values[1]);
+                    double l2_hit_rate = (double)values[3] / (values[2] + values[3]);
+
+                    cout << "L1 Hit Rate: " << l1_hit_rate * 100 << "%\n";
+                    cout << "L2 Hit Rate: " << l2_hit_rate * 100 << "%\n";
+                    return 0;
             }
         }
         if(inputBuffer->buffer[0]=='.'){
