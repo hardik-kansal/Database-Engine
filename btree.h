@@ -128,9 +128,9 @@ class Bplustrees{
             return node->tPages[node->rowCount];
         }
         // Insert a new row into the B+ tree
-        void insert(uint64_t key, const char* payload) {
+        void insert(uint64_t key, uint8_t* payload) {
             vector<pageNode*> path;           
-            pageNode* curr = (pageNode*)root;
+            pageNode* curr = reinterpret_cast<pageNode*> (root);
             path.push_back(curr);
             // Navigate to the appropriate leaf page
             while (curr->type != PAGE_TYPE_LEAF) {
@@ -151,8 +151,10 @@ class Bplustrees{
         }
         
         // Insert a row into a leaf page
-        void insertIntoLeaf(pageNode* leaf,uint16_t index,uint64_t key, const char* payload, vector<pageNode*>& path) {
-            uint32_t payloadLength = strlen(payload) + 1; // +1 for null terminator
+        void insertIntoLeaf(pageNode* leaf,uint16_t index,uint64_t key, uint8_t* payload, vector<pageNode*>& path) {
+            
+            // wraps down, though would not fail
+            uint16_t payloadLength = static_cast<uint16_t>(strlen(reinterpret_cast<char*>(payload))) + 1; // +1 for null terminator
             
             if (canInsertRow(leaf, payloadLength)) {
                 leaf->dirty = true;
@@ -175,7 +177,7 @@ class Bplustrees{
         }
         
         // Insert a row at the specified index
-        void insertRowAt(pageNode* page,uint16_t index, uint64_t key, const char* payload, uint32_t payloadLength) {
+        void insertRowAt(pageNode* page,uint16_t index, uint64_t key, uint8_t* payload, uint16_t payloadLength) {
             
             for (uint16_t i = page->rowCount; i > index; i--) {
                 page->slots[i] = page->slots[i - 1];
@@ -185,7 +187,7 @@ class Bplustrees{
             page->slots[index].offset = page->freeStart-payloadLength;
             page->slots[index].length = payloadLength;
             // Copy payload
-            memcpy(((char*)page) + page->freeStart-payloadLength, payload, payloadLength);
+            memcpy(reinterpret_cast<uint8_t*>(page) + page->freeStart-payloadLength, payload, payloadLength);
             
 
             // Update page metadata
@@ -194,14 +196,14 @@ class Bplustrees{
         }
         void defragLeaf(pageNode* leaf){
             uint16_t len=(leaf->pageNumber==1)? (MAX_PAYLOAD_SIZE_ROOT) : MAX_PAYLOAD_SIZE;
-            char* buff=new char[len];
+            uint8_t* buff=new uint8_t[len];
             memcpy(buff,leaf->payload,len);
             uint16_t offset=FREE_START_DEFAULT;
             for(uint16_t i = 0; i < leaf->rowCount; i++){
                 uint16_t oldOffset=leaf->slots[i].offset;
                 uint16_t length=leaf->slots[i].length;
                 uint16_t buffOffset= oldOffset - FREE_END_DEFAULT;
-                memcpy(((char*)leaf) + offset-length,buff+buffOffset,length);
+                memcpy(reinterpret_cast<uint8_t*>(leaf) + offset-length,buff+buffOffset,length);
                 leaf->slots[i].offset=offset-length;
                 offset-=length;
             }
@@ -209,7 +211,7 @@ class Bplustrees{
             delete[] buff;
         }
         // Split a leaf page and insert the new row
-        void splitLeafAndInsert(pageNode* leaf, uint16_t index, uint64_t key, const char* payload, uint32_t payloadLength, vector<pageNode*>& path) {
+        void splitLeafAndInsert(pageNode* leaf, uint16_t index, uint64_t key, uint8_t* payload, uint16_t payloadLength, vector<pageNode*>& path) {
             // Create new leaf page
             pageNode* newLeaf = createNewLeafPage();
             // Calculate split point based on payload capacity
@@ -244,7 +246,7 @@ class Bplustrees{
             } else {
                 // Insert into parent
                 path.pop_back();
-                insertIntoInternal(path[path.size() - 1], leaf, newLeaf, path,newLeaf->slots[0].key);
+                insertIntoInternal(path[path.size() - 1],newLeaf, path,newLeaf->slots[0].key);
             }
         }
         
@@ -265,8 +267,9 @@ class Bplustrees{
         
         // Find the optimal split index based on payload capacity
         uint16_t findSplitIndex(pageNode* page) {
-            uint32_t totalPayloadUsed = 0;
-            uint16_t splitIndex = (page->rowCount +1)/ 2; // Start with middle
+            uint16_t totalPayloadUsed = 0;
+            // here conversion happens without static_cast from int to uint16_t as + is int priority.
+            uint16_t splitIndex = static_cast<uint16_t>((page->rowCount + 1)/ 2); // Start with middle
             
             // Calculate payload usage up to split point
             for (uint16_t i = 0; i < splitIndex; i++) {
@@ -275,13 +278,13 @@ class Bplustrees{
             
             // Adjust split point to balance payload usage
             
-            uint32_t availableSpace = -FREE_END_DEFAULT;
+            size_t availableSpace = -static_cast<size_t>(FREE_END_DEFAULT);
             if(page->pageNumber==1)availableSpace+=FREE_START_DEFAULT_ROOT;
             else availableSpace+=FREE_START_DEFAULT;
 
-            uint32_t targetSpace = availableSpace / 2;
+            size_t targetSpace = availableSpace / 2;
             
-            while (splitIndex > 0 && totalPayloadUsed > targetSpace) {
+            while (splitIndex > 0 && totalPayloadUsed > static_cast<uint16_t>(targetSpace)) {
                 splitIndex--;
                 totalPayloadUsed -= page->slots[splitIndex].length;
             }
@@ -297,12 +300,12 @@ class Bplustrees{
             memcpy(newLeaf->slots, oldLeaf->slots + splitIndex, sizeof(RowSlot) * rowsToMove);
             
             // Copy payloads (use offsets/lengths from the moved range)
-            uint32_t newPayloadOffset = FREE_START_DEFAULT; // newLeaf is always a normal page
+            uint16_t newPayloadOffset = FREE_START_DEFAULT; // newLeaf is always a normal page
             for (uint16_t i = 0; i < rowsToMove; i++) {
-                uint32_t oldOffset = oldLeaf->slots[i + splitIndex].offset;
-                uint32_t length    = oldLeaf->slots[i + splitIndex].length;
+                uint16_t oldOffset = oldLeaf->slots[i + splitIndex].offset;
+                uint16_t length    = oldLeaf->slots[i + splitIndex].length;
                 
-                memcpy(((char*)newLeaf) + newPayloadOffset - length, ((char*)oldLeaf) + oldOffset, length);
+                memcpy(reinterpret_cast<uint8_t*>(newLeaf) + newPayloadOffset - length, reinterpret_cast<uint8_t*>(oldLeaf) + oldOffset, length);
                 newLeaf->slots[i].offset = newPayloadOffset - length;
                 newPayloadOffset -= length;
             }
@@ -325,21 +328,21 @@ class Bplustrees{
             newRoot->dirty = true;
             // Set up the root's slots
             newRoot->slots[0].key = key;
-            newRoot->slots[0].offset = newRoot->freeStart-sizeof(uint32_t);
+            newRoot->slots[0].offset = newRoot->freeStart-static_cast<uint16_t>(sizeof(uint32_t));
             newRoot->slots[0].length = sizeof(uint32_t);
             
             // Store page numbers in payload
-            memcpy(((char*)newRoot) + newRoot->freeStart-sizeof(uint32_t), &leftChild->pageNumber, sizeof(uint32_t));
-            memcpy(((char*)newRoot)+ newRoot->freeStart - (2*sizeof(uint32_t)), &rightChild->pageNumber, sizeof(uint32_t));
+            memcpy(reinterpret_cast<uint8_t*>(newRoot) + newRoot->freeStart-sizeof(uint32_t), &leftChild->pageNumber, sizeof(uint32_t));
+            memcpy(reinterpret_cast<uint8_t*>(newRoot)+ newRoot->freeStart - (2*sizeof(uint32_t)), &rightChild->pageNumber, sizeof(uint32_t));
             
-            newRoot->freeStart = newRoot->freeStart - 2* sizeof(uint32_t);
+            newRoot->freeStart = newRoot->freeStart - 2* static_cast<uint16_t>(sizeof(uint32_t));
             newRoot->trunkStart=trunkStart;
             pager->lruCache->put(newRoot->pageNumber, newRoot);
             root = newRoot;
         }
         
         // Insert into internal node
-        void insertIntoInternal(pageNode* internal, pageNode* leftChild, pageNode* rightChild, vector<pageNode*>& path,uint64_t key) {
+        void insertIntoInternal(pageNode* internal, pageNode* rightChild, vector<pageNode*>& path,uint64_t key) {
             uint32_t rightPageNumber = rightChild->pageNumber;
             // Find insertion point
             uint16_t index = ub(internal->slots, internal->rowCount, key);
@@ -377,18 +380,18 @@ class Bplustrees{
             // page to be inserted becomes righmost page
             if(index==internal->rowCount){
                 internal->slots[index].offset = internal->freeStart; 
-                memcpy(((char*)internal)+ internal->freeStart-sizeof(uint32_t), &pageNumber, sizeof(uint32_t));
+                memcpy(reinterpret_cast<uint8_t*>(internal)+ internal->freeStart-sizeof(uint32_t), &pageNumber, sizeof(uint32_t));
             }
             else{
                 internal->slots[index].offset = internal->slots[index+1].offset;
-                memcpy(((char*)internal)+internal->freeStart-sizeof(uint32_t),((char*)internal)+internal->freeStart,sizeof(uint32_t));
+                memcpy(reinterpret_cast<uint8_t*>(internal)+internal->freeStart-sizeof(uint32_t),reinterpret_cast<uint8_t*>(internal)+internal->freeStart,sizeof(uint32_t));
                 internal->slots[index+1].offset=internal->freeStart; 
-                memcpy(((char*)internal)+ internal->freeStart, &pageNumber, sizeof(uint32_t));               
+                memcpy(reinterpret_cast<uint8_t*>(internal)+ internal->freeStart, &pageNumber, sizeof(uint32_t));               
 
             }
             
             internal->rowCount++;
-            internal->freeStart -= sizeof(uint32_t);
+            internal->freeStart -= static_cast<uint16_t>(sizeof(uint32_t));
         }
         pageNode* createNewInternalPage(){
             pageNode* newInternal = new pageNode();
@@ -405,19 +408,19 @@ class Bplustrees{
             
             // DEFRAGMENTATION 
             uint16_t len=(oldInternal->pageNumber==1)? (MAX_PAYLOAD_SIZE_ROOT) : MAX_PAYLOAD_SIZE;
-            char* buff=new char[len];
+            uint8_t* buff=new uint8_t[len];
             memcpy(buff,oldInternal->payload,len);
             for(uint16_t i = 0; i < oldInternal->rowCount; i++){
                 uint16_t oldOffset=oldInternal->slots[i].offset;
                 uint16_t buffOffset= oldOffset - FREE_END_DEFAULT;
-                memcpy(((char*)oldInternal) + offset-sizeof(uint32_t),buff+buffOffset,sizeof(uint32_t));
-                oldInternal->slots[i].offset=offset-sizeof(uint32_t);
-                offset-=sizeof(uint32_t);
+                memcpy(reinterpret_cast<uint8_t*>(oldInternal) + offset-sizeof(uint32_t),buff+buffOffset,sizeof(uint32_t));
+                oldInternal->slots[i].offset=offset-static_cast<uint16_t>(sizeof(uint32_t));
+                offset-=static_cast<uint16_t>(sizeof(uint32_t));
             }
             // rightmost node
-            memcpy(((char*)oldInternal) + offset-sizeof(uint32_t),buff+ind-FREE_END_DEFAULT,sizeof(uint32_t));
+            memcpy(reinterpret_cast<uint8_t*>(oldInternal) + offset-sizeof(uint32_t),buff+ind-FREE_END_DEFAULT,sizeof(uint32_t));
             
-            oldInternal->freeStart=offset-sizeof(uint32_t);
+            oldInternal->freeStart=offset-static_cast<uint16_t>(sizeof(uint32_t));
             delete[] buff;
         }
         
@@ -448,7 +451,7 @@ class Bplustrees{
                 moveInternalRowsToNew(internal, newInternal, splitIndex);   
                 internal->rowCount = splitIndex;  
                 defragment(internal,rightOffset);
-                memcpy(((char*)newInternal)+newInternal->slots[0].offset,&pageNumber,sizeof(uint32_t));
+                memcpy(reinterpret_cast<uint8_t*>(newInternal)+newInternal->slots[0].offset,&pageNumber,sizeof(uint32_t));
                 newKey=key;
             }
             else{
@@ -458,7 +461,8 @@ class Bplustrees{
                 moveInternalRowsToNew(internal, newInternal, splitIndex+1);   
                 internal->rowCount = splitIndex;  
                 defragment(internal,rightOffset);
-                insertInternalRowAt(newInternal, index - splitIndex-1, key, pageNumber);  
+                // here since -1 is there which takes it to int.
+                insertInternalRowAt(newInternal,static_cast<uint16_t>(index - splitIndex-1), key, pageNumber);  
             }
             
             // Update parent or create new root
@@ -468,7 +472,7 @@ class Bplustrees{
                 createNewRoot(internal,newInternal,newKey);
             } else {
                 path.pop_back();
-                insertIntoInternal(path[path.size() - 1], internal, newInternal, path,newKey);
+                insertIntoInternal(path[path.size() - 1], newInternal, path,newKey);
             }
         }
         
@@ -482,13 +486,13 @@ class Bplustrees{
             uint16_t payloadOffset =FREE_START_DEFAULT;
             for (uint16_t i = 0; i < rowsToMove; i++) {
                 uint16_t oldOffset = oldInternal->slots[i+splitIndex].offset;
-                uint32_t length = sizeof(uint32_t);
-                memcpy(((char*)newInternal) + payloadOffset-length, ((char*)oldInternal) + oldOffset, length);
+                uint16_t length = sizeof(uint32_t);
+                memcpy(reinterpret_cast<uint8_t*>(newInternal) + payloadOffset-length, reinterpret_cast<uint8_t*>(oldInternal) + oldOffset, length);
                 newInternal->slots[i].offset = payloadOffset-length;
                 payloadOffset -= length;
             }
-            uint32_t length = sizeof(uint32_t);
-            memcpy(((char*)newInternal) + payloadOffset-length, ((char*)oldInternal) + oldInternal->freeStart, length);
+            uint16_t length = sizeof(uint32_t);
+            memcpy(reinterpret_cast<uint8_t*>(newInternal) + payloadOffset-length, reinterpret_cast<uint8_t*>(oldInternal) + oldInternal->freeStart, length);
 
             if(rowsToMove>0)newInternal->rowCount = rowsToMove;
             else newInternal->rowCount = 0;
@@ -498,7 +502,7 @@ class Bplustrees{
         // Delete a key from the B+ tree
         bool deleteKey(uint64_t key) {
             vector<pageNode*> path;
-            pageNode* curr = (pageNode*)root;
+            pageNode* curr = reinterpret_cast<pageNode*>(root);
             path.push_back(curr);
             
             // Navigate to the appropriate leaf page
@@ -515,12 +519,12 @@ class Bplustrees{
             }
             
             // Delete from leaf and handle underflow
-            deleteFromLeaf(curr, idx, path,key);
+            deleteFromLeaf(curr, idx, path);
             return true;
         }
         
         // Delete a key from a leaf node
-        void deleteFromLeaf(pageNode* leaf, uint16_t index, vector<pageNode*>& path,uint64_t key) {
+        void deleteFromLeaf(pageNode* leaf, uint16_t index, vector<pageNode*>& path) {
             // Remove the key from the leaf
             leaf->dirty = true;
             if(!leaf->inJournal){
@@ -529,7 +533,7 @@ class Bplustrees{
             removeRowFromLeaf(leaf, index);
             
             // Special case: if root is a leaf and becomes empty, that's fine
-            if (leaf == (pageNode*)root && leaf->rowCount == 0) {
+            if (leaf == reinterpret_cast<pageNode*>(root) && leaf->rowCount == 0) {
                 return; // Empty root leaf is allowed
             }
             
@@ -548,7 +552,7 @@ class Bplustrees{
             // chanage in root if lefmost of root key subtree
         }
         void changeRootifLeftmost(pageNode* leaf,uint16_t index,uint64_t key){
-            pageNode* curr = (pageNode*)root;
+            pageNode* curr = reinterpret_cast<pageNode*>(root);
             uint16_t idx = ub(curr->slots, curr->rowCount, key);
             if(root->type==PAGE_TYPE_LEAF) return;
             curr = pager->getPage(pager->getPageNoPayload(curr, idx));
@@ -656,7 +660,7 @@ class Bplustrees{
             
             // Insert at beginning of leaf
             insertRowAt(leaf, 0, leftSibling->slots[keyToMove].key, 
-                       ((char*)leftSibling) + leftSibling->slots[keyToMove].offset, 
+                reinterpret_cast<uint8_t*>(leftSibling) + leftSibling->slots[keyToMove].offset, 
                        leftSibling->slots[keyToMove].length);
             
             // Remove from left sibling
@@ -673,7 +677,7 @@ class Bplustrees{
             
             // Insert at end of leaf
             insertRowAt(leaf, leaf->rowCount, rightSibling->slots[keyToMove].key,
-                       ((char*)rightSibling) + rightSibling->slots[keyToMove].offset,
+                reinterpret_cast<uint8_t*>(rightSibling) + rightSibling->slots[keyToMove].offset,
                        rightSibling->slots[keyToMove].length);
             
             // Remove from right sibling
@@ -692,7 +696,7 @@ class Bplustrees{
             for (uint16_t i = 0; i < rightLeaf->rowCount; i++) {
                 
                 insertRowAt(leftLeaf, leftLeaf->rowCount, rightLeaf->slots[i].key,
-                           ((char*)rightLeaf) + rightLeaf->slots[i].offset,
+                    reinterpret_cast<uint8_t*>(rightLeaf) + rightLeaf->slots[i].offset,
                            rightLeaf->slots[i].length);
             }
             
@@ -706,7 +710,7 @@ class Bplustrees{
 
             if(parent->rowCount==0 && path.size()==2){
                 uint32_t page_no=leftLeaf->pageNumber;
-                root=(RootPageNode*)leftLeaf;
+                root=reinterpret_cast<RootPageNode*>(leftLeaf);
                 root->trunkStart=trunkStart;
                 root->pageNumber=1;
                 pager->lruCache->put(1,root);
@@ -731,7 +735,7 @@ class Bplustrees{
                 internal->slots[i] = internal->slots[i + 1];
             }
             internal->rowCount--;
-            if(index==internal->rowCount){memcpy(((char*)internal)+internal->freeStart,((char*)internal)+offset,sizeof(uint32_t));}
+            if(index==internal->rowCount){memcpy(reinterpret_cast<uint8_t*>(internal)+internal->freeStart,reinterpret_cast<uint8_t*>(internal)+offset,sizeof(uint32_t));}
             else if(internal->rowCount!=0)internal->slots[index].offset=offset;
             else internal->freeStart=internal->slots[index].offset;
             
@@ -812,19 +816,19 @@ class Bplustrees{
         void insertInternalAtStarting(pageNode* internal,uint64_t key,uint32_t pageNumber){
             for (uint16_t i = internal->rowCount; i >0; i--) {
                 internal->slots[i] = internal->slots[i - 1];
-                internal->slots[i].offset-=sizeof(uint32_t);
+                internal->slots[i].offset-=static_cast<uint16_t>(sizeof(uint32_t));
             }
             
             // Insert new slot
             internal->slots[0].key = key;
             internal->slots[0].length = sizeof(uint32_t);
             internal->slots[0].offset=FREE_START_DEFAULT-sizeof(uint32_t);
-            memmove(((char*)internal)+internal->freeStart-sizeof(uint32_t),((char*)internal)+internal->freeStart,sizeof(uint32_t)*internal->rowCount+1);
-            memcpy(((char*)internal)+internal->slots[0].offset,&pageNumber,sizeof(uint32_t));
+            memmove(reinterpret_cast<uint8_t*>(internal)+internal->freeStart-sizeof(uint32_t),reinterpret_cast<uint8_t*>(internal)+internal->freeStart,sizeof(uint32_t)*internal->rowCount+1);
+            memcpy(reinterpret_cast<uint8_t*>(internal)+internal->slots[0].offset,&pageNumber,sizeof(uint32_t));
             
             // Update metadata
             internal->rowCount++;
-            internal->freeStart -= sizeof(uint32_t);
+            internal->freeStart -=static_cast<uint16_t>(sizeof(uint32_t));
         }
         void removeInternalAtStarting(pageNode* internal){
             for (uint16_t i = 0; i < internal->rowCount - 1; i++) {
@@ -859,7 +863,7 @@ class Bplustrees{
             
             // Insert the parent key at the end of internal
             insertInternalRowAt(internal, internal->rowCount, parent->slots[parentIndex].key, childPageNo);
-            memcpy((char*)internal+internal->slots[0].offset,&parentIndex_lcpageNumber,sizeof(uint32_t));
+            memcpy(reinterpret_cast<uint8_t*>(internal)+internal->slots[0].offset,&parentIndex_lcpageNumber,sizeof(uint32_t));
             // Update parent key with the leftmost key from right sibling
             parent->slots[parentIndex].key = rightSibling->slots[0].key;
             
@@ -893,7 +897,7 @@ class Bplustrees{
                 uint32_t page_no=leftInternal->pageNumber;
                 root->freeStart=leftInternal->freeStart-ROOT_BACK_HEADER_SIZE;
                 memcpy(root->slots,leftInternal->slots,sizeof(RowSlot)*(leftInternal->rowCount));
-                memcpy(((char*)root)+root->freeStart,((char*)leftInternal)+leftInternal->freeStart,PAGE_SIZE-leftInternal->freeStart);
+                memcpy(reinterpret_cast<uint8_t*>(root)+root->freeStart,reinterpret_cast<uint8_t*>(leftInternal)+leftInternal->freeStart,PAGE_SIZE-leftInternal->freeStart);
                 root->pageNumber=1;
                 root->rowCount=leftInternal->rowCount;
                 root->trunkStart=trunkStart;

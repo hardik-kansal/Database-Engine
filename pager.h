@@ -18,7 +18,7 @@ struct Pager{
 
     // off_t long long int
     pageNode* getPage(uint32_t page_no){
-        if(this->lruCache->get(page_no)!=nullptr)return (pageNode*)this->lruCache->get(page_no);
+        if(this->lruCache->get(page_no)!=nullptr)return static_cast<pageNode*>(this->lruCache->get(page_no));
         else{
             off_t success=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
             if(success<0)exit(EXIT_FAILURE);
@@ -54,7 +54,7 @@ struct Pager{
     RootPageNode* getRootPage(){
         uint32_t page_no=1;
         if(page_no>this->numOfPages)return nullptr;
-        if(this->lruCache->get(page_no)!=nullptr)return (RootPageNode*)this->lruCache->get(page_no);
+        if(this->lruCache->get(page_no)!=nullptr)return static_cast<RootPageNode*>(this->lruCache->get(page_no));
         else{
             off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
             if(offset<0)exit(EXIT_FAILURE);
@@ -91,7 +91,7 @@ struct Pager{
         }
     }
     TrunkPageNode* getTrunkPage(uint32_t page_no){
-        if(this->lruCache->get(page_no)!=nullptr)return (TrunkPageNode*)this->lruCache->get(page_no);
+        if(this->lruCache->get(page_no)!=nullptr)return static_cast<TrunkPageNode*>(this->lruCache->get(page_no));
         else{
             off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
             if(offset<0)exit(EXIT_FAILURE);
@@ -151,8 +151,8 @@ struct Pager{
             // EACH Query or transaction once done needed to unmark 
             // ELSE seperate queries will consider flushAgain or consider them in their journal.
         
-            ((pageNode*)tem->value)->dirty=false;
-            ((pageNode*)tem->value)->inJournal=false;
+            static_cast<pageNode*>(tem->value)->dirty=false;
+            static_cast<pageNode*>(tem->value)->inJournal=false;
             // cast to any page type since inJournal is at same offset in all page type structs
             counter++;
 
@@ -170,25 +170,25 @@ struct Pager{
         }
     }
 
-    uint8_t getRow(uint16_t id,uint32_t page_no){
+    uint16_t getRow(uint16_t id,uint32_t page_no){
 
         pageNode* page=getPage(page_no);
         if(page->type!=PAGE_TYPE_LEAF){cout<<"INTERIOR PAGE ACCESSED FOR ROW";exit(EXIT_FAILURE);}
         uint16_t index=lb(page->slots,page->rowCount,id);
-        if(index==page->rowCount) return -1;
+        if(index==page->rowCount){cout<<"ERROR: index==page->rowCount"<<endl;exit(EXIT_FAILURE);}
         return index;
       
     }
     // index id 0 based and gives corresponding pageNo.
     uint32_t getPageNoPayload(void* curr,uint16_t index){
         uint32_t value;
-        if(index<((pageNode*)curr)->rowCount){
-        if(GET_PAGE_NO(curr,true)==1)memcpy(&value, ((char*)curr) + ((RootPageNode*)curr)->slots[index].offset, sizeof(uint32_t));  
-        else {memcpy(&value, ((char*)curr) + ((pageNode*)curr)->slots[index].offset, sizeof(uint32_t));}  
+        if(index<static_cast<pageNode*>(curr)->rowCount){
+        if(GET_PAGE_NO(curr,true)==1)memcpy(&value, static_cast<uint8_t*>(curr) + static_cast<RootPageNode*>(curr)->slots[index].offset, sizeof(uint32_t));  
+        else {memcpy(&value, static_cast<uint8_t*>(curr) + static_cast<pageNode*>(curr)->slots[index].offset, sizeof(uint32_t));}  
         }
         else{
-            if(GET_PAGE_NO(curr,true)==1)memcpy(&value, ((char*)curr) + ((RootPageNode*)curr)->freeStart, sizeof(uint32_t));  
-            else memcpy(&value, ((char*)curr) + ((pageNode*)curr)->freeStart, sizeof(uint32_t)); 
+            if(GET_PAGE_NO(curr,true)==1)memcpy(&value, static_cast<uint8_t*>(curr) + static_cast<RootPageNode*>(curr)->freeStart, sizeof(uint32_t));  
+            else memcpy(&value, static_cast<uint8_t*>(curr) + static_cast<pageNode*>(curr)->freeStart, sizeof(uint32_t)); 
         }
         return value;
     }
@@ -210,10 +210,12 @@ struct Pager{
         header.salt1=databaseVersion+1; // for database versioning
         header.salt2=random_u32(); // for checksum
 
+        // const is used for both runtime/compile time asignment
+        // constexpr is used for only compile time expr
+        constexpr size_t padded_len = ((ROLLBACK_HEADER_SIZE + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
 
-        size_t total_len = ROLLBACK_HEADER_SIZE;
-        size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
-    
+        // ISOC++ req array size to be const/constexpr
+        // gcc is extension thats why works, but might fail on MSVC (MS Visual Compiler) 
         uint8_t buffer[padded_len];
         memset(buffer, 0, padded_len);
         memcpy(buffer, &header,ROLLBACK_HEADER_SIZE );
@@ -238,8 +240,8 @@ struct Pager{
 
         uint32_t cksum = crc32_with_salt(page,PAGE_SIZE,this->lruCache->salt2);
         // cout<<"cksum: "<<cksum<<endl;
-        size_t total_len = PAGE_SIZE + sizeof(cksum);
-        size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+        constexpr size_t total_len = PAGE_SIZE + sizeof(uint32_t);
+        constexpr size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
     
         uint8_t buffer[padded_len];
         memset(buffer, 0, padded_len);
@@ -253,7 +255,11 @@ struct Pager{
     
         int fdj=this->file_descriptor_journal;
         uint16_t i=this->lruCache->no_of_pages_in_journal;
-        if(lseek(fdj,padded_len_header+padded_len*i,SEEK_SET)<0){exit(EXIT_FAILURE);}
+
+        // size_t is unsigned long used for counts,sizes,len, return type of sizeof
+        //  off_t is signed long return type of read, write, offset.
+        // usigned to signed may change sign though but at 2^61 len only. 
+        if(lseek(fdj,static_cast<off_t>(padded_len_header+padded_len*i),SEEK_SET)<0){exit(EXIT_FAILURE);}
         if(write(fdj, buffer, padded_len)<0){exit(EXIT_FAILURE);}
         this->lruCache->no_of_pages_in_journal++;
 

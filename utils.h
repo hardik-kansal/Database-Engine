@@ -13,14 +13,14 @@ inline bool reading=false;
 
 
 // 1 if little endian system
-static inline bool checkIfLittleEndian() {
+static inline uint8_t checkIfLittleEndian() {
     uint32_t test = 1;
-    return *((uint8_t*)&test) == 1;
+    return *reinterpret_cast<uint8_t*>(&test) == 1;
 }
-inline int ifLe=checkIfLittleEndian();
+inline uint8_t ifLe=checkIfLittleEndian();
 
-static inline bool GET_IN_JOURNAL(void* ptr, size_t size) {
-    return *(bool*)((uint8_t*)ptr + size-1);
+static inline uint8_t GET_IN_JOURNAL(void* ptr, size_t size) {
+    return *(static_cast<uint8_t*>(ptr) + size-1);
 }
 
 
@@ -28,8 +28,8 @@ static inline bool GET_IN_JOURNAL(void* ptr, size_t size) {
 // PAGE HEADER
 // --------------------
 
-static inline bool GET_DIRTY(void* ptr, size_t size) {
-    return *(bool*)((uint8_t*)ptr + size - 1);
+static inline uint8_t GET_DIRTY(void* ptr, size_t size) {
+    return *(static_cast<uint8_t*>(ptr) + size - 1);
 }
 
 static inline uint32_t GET_PAGE_NO(void* ptr, bool returnAsIs) {
@@ -40,25 +40,25 @@ static inline uint32_t GET_PAGE_NO(void* ptr, bool returnAsIs) {
 
 static inline uint32_t GET_PAGE_TYPE(void* ptr, bool returnAsIs) {
     uint32_t val;
-    memcpy(&val, (uint8_t*)ptr + 4, sizeof(uint32_t));
+    memcpy(&val, static_cast<uint8_t*>(ptr) + 4, sizeof(uint32_t));
     return returnAsIs ? val : __builtin_bswap32(val);
 }
 
 static inline uint16_t GET_ROW_COUNT(void* ptr, bool returnAsIs) {
     uint16_t val;
-    memcpy(&val, (uint8_t*)ptr + 8, sizeof(uint16_t));
+    memcpy(&val, static_cast<uint8_t*>(ptr) + 8, sizeof(uint16_t));
     return returnAsIs ? val : __builtin_bswap16(val);
 }
 
 static inline uint16_t GET_FREE_START(void* ptr, bool returnAsIs) {
     uint16_t val;
-    memcpy(&val, (uint8_t*)ptr + 10, sizeof(uint16_t));
+    memcpy(&val, static_cast<uint8_t*>(ptr)  + 10, sizeof(uint16_t));
     return returnAsIs ? val : __builtin_bswap16(val);
 }
 
 static inline uint16_t GET_FREE_END(void* ptr, bool returnAsIs) {
     uint16_t val;
-    memcpy(&val, (uint8_t*)ptr + 12, sizeof(uint16_t));
+    memcpy(&val, static_cast<uint8_t*>(ptr)  + 12, sizeof(uint16_t));
     return returnAsIs ? val : __builtin_bswap16(val);
 }
 
@@ -68,19 +68,19 @@ static inline uint16_t GET_FREE_END(void* ptr, bool returnAsIs) {
 
 static inline uint64_t GET_ROW_SLOT_KEY(void* ptr, uint16_t i, bool returnAsIs) {
     uint64_t val;
-    memcpy(&val, (uint8_t*)ptr + 14 + i*14, sizeof(uint64_t));
+    memcpy(&val, static_cast<uint8_t*>(ptr)  + 14 + i*14, sizeof(uint64_t));
     return returnAsIs ? val : __builtin_bswap64(val);
 }
 
 static inline uint16_t GET_ROW_SLOT_OFFSET(void* ptr, uint16_t i, bool returnAsIs) {
     uint16_t val;
-    memcpy(&val, (uint8_t*)ptr + 14 + i*14 + 8, sizeof(uint16_t));
+    memcpy(&val, static_cast<uint8_t*>(ptr)  + 14 + i*14 + 8, sizeof(uint16_t));
     return returnAsIs ? val : __builtin_bswap16(val);
 }
 
 static inline uint32_t GET_ROW_SLOT_LENGTH(void* ptr, uint16_t i, bool returnAsIs) {
     uint32_t val;
-    memcpy(&val, (uint8_t*)ptr + 14 + i*14 + 10, sizeof(uint32_t));
+    memcpy(&val, static_cast<uint8_t*>(ptr)  + 14 + i*14 + 10, sizeof(uint32_t));
     return returnAsIs ? val : __builtin_bswap32(val);
 }
 
@@ -90,13 +90,13 @@ static inline uint32_t GET_ROW_SLOT_LENGTH(void* ptr, uint16_t i, bool returnAsI
 
 static inline uint32_t GET_PREV_TRUNK_PAGE(void* ptr, bool returnAsIs) {
     uint32_t val;
-    memcpy(&val, (uint8_t*)ptr + 12, sizeof(uint32_t));
+    memcpy(&val, static_cast<uint8_t*>(ptr)  + 12, sizeof(uint32_t));
     return returnAsIs ? val : __builtin_bswap32(val);
 }
 
 static inline uint32_t GET_ROW_COUNT_TRUNK(void* ptr, bool returnAsIs) {
     uint32_t val;
-    memcpy(&val, (uint8_t*)ptr + 8, sizeof(uint32_t));
+    memcpy(&val, static_cast<uint8_t*>(ptr)  + 8, sizeof(uint32_t));
     return returnAsIs ? val : __builtin_bswap32(val);
 }
 
@@ -106,7 +106,7 @@ static inline uint32_t GET_ROW_COUNT_TRUNK(void* ptr, bool returnAsIs) {
 
 static inline uint32_t GET_TRUNK_START(void* ptr, bool returnAsIs) {
     uint32_t val;
-    memcpy(&val, (uint8_t*)ptr + PAGE_SIZE - sizeof(uint32_t), sizeof(uint32_t));
+    memcpy(&val, static_cast<uint8_t*>(ptr)  + PAGE_SIZE - sizeof(uint32_t), sizeof(uint32_t));
     return returnAsIs ? val : __builtin_bswap32(val);
 }
 
@@ -118,12 +118,13 @@ uint16_t lb(RowSlot arr[],uint16_t n,uint64_t id){
     if(n==0)return 0;
     uint16_t l=0;uint16_t h=n-1;
     uint16_t ans=n;
-    while(h>=l && h<=n-1){
-        uint16_t mid=l+((h-l)>>1);
+    while(h>=l){
+        uint16_t mid=static_cast<uint16_t>(l+((h-l)>>1));
         if(arr[mid].key==id)return mid;
         else if(arr[mid].key<id)l=mid+1;
         else{
             ans=mid;
+            if(mid==0)return ans;
             h=mid-1;
         }
     }
@@ -133,12 +134,13 @@ uint16_t ub(RowSlot arr[],uint16_t n,uint64_t id){
     if(n==0)return 0;
     uint16_t l=0;uint16_t h=n-1;
     uint16_t ans=n;
-    // uint16_t underflows to 2^16-1 so infinte loop => h<=n-1
-    while(h>=l && h<=n-1){
-        uint16_t mid=l+((h-l)>>1);
+    // uint16_t underflows to 2^16-1 so infinte loop => mid==0 return ans;
+    while(h>=l){
+        uint16_t mid=static_cast<uint16_t>(l+((h-l)>>1));
         if(arr[mid].key<=id)l=mid+1;
         else{
             ans=mid;
+            if(mid==0)return ans;
             h=mid-1;
         }
     }
@@ -146,13 +148,6 @@ uint16_t ub(RowSlot arr[],uint16_t n,uint64_t id){
 }
 
 
-/*
-    uint32_t pageNumber;    // 4
-    PageType type;          // 4 since int declarartion
-    uint16_t rowCount;      // 2 no of rows
-    uint16_t freeStart;     // 2 (start of free space in payload)
-    uint16_t freeEnd;       // 2 (end of free space in payload) 
-*/
 void swapHeader(void* node,uint8_t* temp){
     uint32_t pageNumber=__builtin_bswap32(GET_PAGE_NO(node,reading));
     uint32_t type=__builtin_bswap32(GET_PAGE_TYPE(node,reading));
@@ -167,21 +162,6 @@ void swapHeader(void* node,uint8_t* temp){
     memcpy(temp+12,&freeEnd,2);
 }
 
-
-/*
-    uint32_t pageNumber;    // 4
-    PageType type;          // 4 since int declarartion
-    uint16_t rowCount;      // 2 no of rows
-    uint16_t freeStart;     // 2 (start of free space in payload)
-    uint16_t freeEnd;       // 2 (end of free space in payload)  
-    RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
-    char payload[MAX_PAYLOAD_SIZE];
-*/
-
-/*
-    char payload[MAX_PAYLOAD_SIZE_ROOT];
-    uint32_t trunkStart;
-*/
 
 void swapRowSlot(void* node,uint8_t* temp){
     for(uint16_t i=0;i<GET_ROW_COUNT(node,!reading);i++){
@@ -198,16 +178,16 @@ void swapPayload(void* node,uint8_t* temp,uint16_t size){
     // interior node have fixed offset of length uint32_t
     if(GET_PAGE_TYPE(node,!reading)==0){
         const uint16_t payloadStart = FREE_END_DEFAULT;
-        uint32_t* src;
+        uint8_t* src;
         if(GET_PAGE_NO(node,!reading)==1){
-            src = (uint32_t*)((RootPageNode*)node)->payload;
+            src = reinterpret_cast<uint8_t*>(static_cast<RootPageNode*>(node)->payload);
         } else {
-            src = (uint32_t*)((pageNode*)node)->payload;
+            src = reinterpret_cast<uint8_t*>(static_cast<pageNode*>(node)->payload);
         }
 
         for(uint16_t i = 0; i < size; i += 4){
             uint32_t v;
-            memcpy(&v, ((uint8_t*)src) + i, 4);
+            memcpy(&v,src + i, 4);
             v = __builtin_bswap32(v);
             memcpy(temp + payloadStart + i, &v, 4);
         }
@@ -227,7 +207,7 @@ void swapPayload(void* node,uint8_t* temp,uint16_t size){
 
 void swapTrunkPayload(void* node,uint8_t* temp){
     for(uint32_t i=0;i<GET_ROW_COUNT_TRUNK(node,!reading);i++){
-        uint32_t page_no=__builtin_bswap32(((TrunkPageNode*)node)->tPages[i]);
+        uint32_t page_no=__builtin_bswap32(static_cast<TrunkPageNode*>(node)->tPages[i]);
         memcpy(temp+16+i*4,&page_no,4);
     }
 }

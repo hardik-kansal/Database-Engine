@@ -18,6 +18,16 @@ struct InputBuffer{
     size_t bufferLength;
     ssize_t inputLength; // getline returns -1 in error , 0 if not read- rare
 };
+
+// select_id function -> used to print page using key as page no which req uint32_t as page_no.
+
+struct Row_schema{
+    uint64_t key; // 8
+    uint8_t payload[MAX_PAYLOAD_SIZE]; 
+}__attribute__((packed));
+static_assert(sizeof(Row_schema)== MAX_PAYLOAD_SIZE+8, "Row_schema SIZE MISMATCH");
+
+
 struct Statement{
     StatementType type;
     Row_schema row;
@@ -83,20 +93,20 @@ void flushAll_journal(int fdj,int fd){
     size_t padded_header_len = ((total_header_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
 
     // Safety check
-    if((off_t)padded_header_len > file_size) return;
+    if(static_cast<off_t>(padded_header_len) > file_size) return;
 
     rollback_header header;
     if(lseek(fdj, 0, SEEK_SET) < 0) { exit(EXIT_FAILURE); }
     if(read(fdj, &header, sizeof(header)) < 0) { exit(EXIT_FAILURE); }
 
     
-    off_t offset = padded_header_len;
+    off_t offset = static_cast<off_t>(padded_header_len);
     uint32_t totalPages=header.numOfPages;
     
-    int count=0;
+    uint32_t count=0;
     while(count<totalPages) {
         // Ensure enough for at least one record header (PAGE + 4 checksum)
-        if(offset + (off_t)(PAGE_SIZE + sizeof(uint32_t)) > file_size - 8) break;
+        if(offset + static_cast<off_t>(PAGE_SIZE + sizeof(uint32_t)) > file_size - 8) break;
 
         uint8_t pagebuf[PAGE_SIZE];
         uint32_t stored_cksum = 0;
@@ -119,7 +129,7 @@ void flushAll_journal(int fdj,int fd){
             exit(EXIT_FAILURE);
         }
 
-        off_t db_off = (off_t)(page_no - 1) * PAGE_SIZE;
+        off_t db_off = static_cast<off_t>(page_no - 1) * PAGE_SIZE;
 
         
         if(ifLe) {
@@ -134,7 +144,7 @@ void flushAll_journal(int fdj,int fd){
         // Advance to next sector-aligned record
         size_t rec_total = PAGE_SIZE + sizeof(uint32_t);
         size_t rec_padded = ((rec_total + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
-        offset += rec_padded;
+        offset += static_cast<off_t>(rec_padded);
         count++;
     }
     return;   
@@ -217,7 +227,10 @@ Pager* pager_open() {
     cout<<"     (checking existing journal file..)"<<endl;
     if(!rollback_journal(fdj,fd,&i_numOfPages)){
             cout<<"Journal invalid!"<<endl;
-            if(lseek(fd,-sizeof(uint32_t),SEEK_END)<0){/* cout<<"here"<<endl; */}
+            // sizeof returns size_t which is unsigned long 
+            // -ve  wraps unsigned, converts it into very big number unsigned long
+            // lseek expects off_t which is signed lond again to normal form.
+            if(lseek(fd,-static_cast<off_t>(sizeof(uint32_t)),SEEK_END)<0){/* cout<<"here"<<endl; */}
             else if(read(fd,&i_numOfPages,sizeof(uint32_t))<0){cerr<<"ERROR reading numOfPages from Main db"<<endl;exit(EXIT_FAILURE);}
             // cout<<"i_numOfPages at end of Main db: "<<i_numOfPages<<endl;
             i_numOfPages_g=i_numOfPages;
@@ -366,16 +379,21 @@ executeResult execute_insert(Statement* statement, Table* table,bool COMMIT_NOW)
     return EXECUTE_SUCCESS;
 }
 
-executeResult execute_select(Statement* statement, Table* table) {
+executeResult execute_select(Table* table) {
     // cout << "     -> Printing B-tree..." << endl;
     table->bplusTrees->printTree();
     return EXECUTE_SUCCESS;
 }
 
 executeResult execute_select_id(Statement* statement, Table* table) {
-    // cout << "     -> Printing node for key: " << statement->row.key << endl;
-    table->bplusTrees->printNode(table->pager->getPage(statement->row.key));
-    // cout << "Select by ID operation executed for key: " << statement->row.key << endl;
+    // cout << "     -> Printing page: " << statement->row.key << endl;
+    uint64_t max_uint32=static_cast<uint32_t>(-1);
+    if(statement->row.key>max_uint32){
+        cout<<"select_id prints page, max page limit exceeded"<<endl;
+        exit(EXIT_FAILURE);
+    }
+
+    table->bplusTrees->printNode(table->pager->getPage(static_cast<uint32_t>(statement->row.key)));
     return EXECUTE_SUCCESS;
 }
 
@@ -400,12 +418,14 @@ executeResult execute_statement(Statement* statement, Table* table,bool COMMIT_N
             return execute_insert(statement, table,COMMIT_NOW);
         case (STATEMENT_SELECT):
             // cout << "   -> Executing select all..." << endl;
-            return execute_select(statement, table);
+            return execute_select(table);
         case (STATEMENT_SELECT_ID):
             // cout << "   -> Executing select by ID for key: " << statement->row.key << endl;
             return execute_select_id(statement, table);
         case (STATEMENT_DELETE):
-            return execute_delete(statement, table,COMMIT_NOW);       
+            return execute_delete(statement, table,COMMIT_NOW);   
+        case (STATEMENT_UNRECOGNIZED):
+            exit(EXIT_FAILURE);     
     }
     return EXECUTE_SUCCESS;
 }

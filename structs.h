@@ -11,31 +11,30 @@ const uint16_t PAGE_HEADER_SIZE = 14;
 struct RowSlot {
     uint64_t key;      // 8 bytes (row ID)
     uint16_t offset;   // 2 bytes (where username starts in payload)
-    uint32_t length;   // 4 bytes (length of username)
+    uint16_t length;   // 2 bytes (length of username)
 }__attribute__((packed));
-static_assert(sizeof(RowSlot)== 14, "ROWSLOT SIZE MISMATCH");
+static_assert(sizeof(RowSlot)== 12, "ROWSLOT SIZE MISMATCH");
 
-const uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE 
+constexpr uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE 
                                 - PAGE_HEADER_SIZE  
                                 - sizeof(RowSlot) * MAX_ROWS ;
-const uint16_t FREE_START_DEFAULT = PAGE_SIZE;
+                                constexpr uint16_t FREE_START_DEFAULT = PAGE_SIZE;
 // trunkstart, datbaseVersioning
-const uint16_t ROOT_BACK_HEADER_SIZE=2*sizeof(uint32_t);
-const uint16_t TRUNK_START_BACK_SIZE=ROOT_BACK_HEADER_SIZE;
-const uint16_t DATABASE_VER_BACK_SIZE=ROOT_BACK_HEADER_SIZE-sizeof(uint32_t);
+constexpr uint16_t ROOT_BACK_HEADER_SIZE=2*static_cast<uint16_t>(sizeof(uint32_t));
+constexpr uint16_t TRUNK_START_BACK_SIZE=ROOT_BACK_HEADER_SIZE;
+constexpr uint16_t DATABASE_VER_BACK_SIZE=ROOT_BACK_HEADER_SIZE-sizeof(uint32_t);
 
 
-const uint16_t MAX_PAYLOAD_SIZE_ROOT= PAGE_SIZE 
+constexpr uint16_t MAX_PAYLOAD_SIZE_ROOT= PAGE_SIZE 
                                 - PAGE_HEADER_SIZE  
                                 - sizeof(RowSlot) * MAX_ROWS 
                                 - ROOT_BACK_HEADER_SIZE ;
 
 
-const uint16_t FREE_START_DEFAULT_ROOT = PAGE_SIZE-ROOT_BACK_HEADER_SIZE;
-
-const uint16_t FREE_END_DEFAULT = PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
+constexpr uint16_t FREE_START_DEFAULT_ROOT = PAGE_SIZE-ROOT_BACK_HEADER_SIZE;
+constexpr uint16_t FREE_END_DEFAULT = PAGE_HEADER_SIZE + sizeof(RowSlot) * MAX_ROWS ;
 // 56 or 0x3800 in little endian, each hex 4bits, 1 byte no endianess
-const uint16_t NO_OF_TPAGES=(PAGE_SIZE-16)/4;
+constexpr uint16_t NO_OF_TPAGES=(PAGE_SIZE-16)/4;
 
 /*
 header{
@@ -55,18 +54,11 @@ struct pageNode {
     uint16_t freeStart;     // 2 (start of free space in payload)
     uint16_t freeEnd;       // 2 (end of free space in payload)
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
-    char payload[MAX_PAYLOAD_SIZE];
+    uint8_t payload[MAX_PAYLOAD_SIZE];
     bool dirty;
     bool inJournal;
 }__attribute__((packed));
 static_assert(sizeof(pageNode)== PAGE_SIZE+2, "pageNode SIZE MISMATCH");
-
-
-struct Row_schema{
-    uint64_t key; // 8
-    char payload[MAX_PAYLOAD_SIZE]; 
-}__attribute__((packed));
-static_assert(sizeof(Row_schema)== MAX_PAYLOAD_SIZE+8, "Row_schema SIZE MISMATCH");
 
 
 struct Page {
@@ -76,7 +68,7 @@ struct Page {
     uint16_t freeStart;     // 2 (start of free space in payload)
     uint16_t freeEnd;       // 2 (end of free space in payload)  
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
-    char payload[MAX_PAYLOAD_SIZE];
+    uint8_t payload[MAX_PAYLOAD_SIZE];
 }__attribute__((packed));
 static_assert(sizeof(Page)== PAGE_SIZE, "Page SIZE MISMATCH");
 
@@ -115,7 +107,7 @@ struct RootPage {
     uint16_t freeStart;     // 2 (start of free space in payload)
     uint16_t freeEnd;       // 2 (end of free space in payload)  
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
-    char payload[MAX_PAYLOAD_SIZE_ROOT];
+    uint8_t payload[MAX_PAYLOAD_SIZE_ROOT];
     uint32_t trunkStart;
     uint32_t databaseVersion;
 }__attribute__((packed));
@@ -129,7 +121,7 @@ struct RootPageNode {
     uint16_t freeStart;     // 2 (start of free space in payload)
     uint16_t freeEnd;       // 2 (end of free space in payload)  
     RowSlot slots[MAX_ROWS];  // MAX_ROWS *14 
-    char payload[MAX_PAYLOAD_SIZE_ROOT];
+    uint8_t payload[MAX_PAYLOAD_SIZE_ROOT];
     uint32_t trunkStart;
     uint32_t databaseVersion;
     // till now ->pagesize
@@ -151,7 +143,7 @@ struct rollback_header{
     uint32_t salt2; //4
 }__attribute__((packed));
 
-const uint16_t ROLLBACK_HEADER_SIZE =sizeof(rollback_header); // 20 bytes
+constexpr uint16_t ROLLBACK_HEADER_SIZE =static_cast<uint16_t>(sizeof(rollback_header)); // 20 bytes
 
 
 

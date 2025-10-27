@@ -33,7 +33,7 @@ public:
         Node* tail;
         uint32_t salt1;
         uint32_t salt2;
-        uint32_t checkMagic;
+        uint64_t checkMagic;
         uint16_t no_of_pages_in_journal;
 
 
