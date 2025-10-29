@@ -3,6 +3,7 @@
 #include "headerfiles.h"
 #include "structs.h"
 #include "utils.h"
+#include "MemPoolManager.h"
 using namespace std;
 
 // TO_DO 
@@ -10,10 +11,10 @@ using namespace std;
 
 // key is page_no uint32_t
 struct Node{
-    uint32_t key;
     void* value;
     Node* next;
     Node* prev;
+    uint32_t key;
     Node(uint32_t  key,void* value){
         this->key=key;
         this->value=value;
@@ -23,7 +24,18 @@ struct Node{
     ~Node(){
         if(this->next!=nullptr)delete this->next;
     }
+    static void* operator new(size_t size){
+        return g_lruPool.allocate();
+    }
+    static void operator delete(void* ptr) noexcept{
+        return g_lruPool.deallocate(ptr);
+    }
+
 };
+static_assert(sizeof(Node)==32,"lru node size mismatched");
+// change in mempoolmanager.cpp size of node too
+
+
 class LRUCache {
 public:
         uint32_t  capacity;

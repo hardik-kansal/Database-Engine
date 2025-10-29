@@ -6,7 +6,7 @@
 // .db is just a naming convention
 const char* filename_journal="f1-jn.db";
 const char* filename="f1.db";
-const uint32_t capacity=256;
+const uint32_t capacity=128;
 const uint64_t MAGIC_NUMBER=16102004;
 uint32_t g_i_numOfPages=0;
 
