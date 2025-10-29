@@ -1,5 +1,5 @@
 rm -f f1.db && rm -f f1-jn.db && g++ -std=gnu++17 -O2 -o dbms main.cpp -lz
-./dbms <<EOF
+perf stat -d -r 1000 ./dbms <<EOF
 i 8 2
 i 9 2
 i 15 3
@@ -16,7 +16,6 @@ i 4 1
 i 5 2
 i 6 2
 i 7 2
-.bt
 i 30 3
 i 31 3
 i 32 h
@@ -25,7 +24,6 @@ i 34 h
 i 35 h
 i 36 3
 i 37 3
-.c
 i 38 h
 i 39 h
 i 40 h
@@ -34,7 +32,6 @@ i 16 3
 i 17 3
 i 20 3
 i 18 3
-.bt
 i 21 h
 i 22 h
 i 23 h
@@ -44,8 +41,6 @@ i 26 h
 i 27 h
 i 28 h
 i 29 h
-.c
-s*
 .exit
 EOF
 
