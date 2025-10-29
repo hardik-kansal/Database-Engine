@@ -9,8 +9,8 @@
 #include <fcntl.h> //open(), O_CREAT
 #include "enums.h"
 #include <zlib.h>
-const uint64_t MAGIC_NUMBER=16102004;
-uint32_t i_numOfPages_g=0;
+extern const uint64_t MAGIC_NUMBER; // constexpr cant be used with extern
+extern uint32_t g_i_numOfPages;
 
 
 using namespace std;

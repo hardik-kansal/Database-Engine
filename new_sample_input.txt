@@ -1,4 +1,4 @@
-rm -f f1.db && rm -f f1-jn.db && g++ -std=gnu++17 -O2 -o dbms main.cpp -lz
+rm -f f1.db && rm -f f1-jn.db && g++ -std=gnu++17 -O2 -o dbms main.cpp MemPoolManager.cpp -lz
 ./dbms <<EOF
 i 8 2
 i 9 2
@@ -102,7 +102,5 @@ EOF
 rm -f f1.db && rm -f f1-jn.db && g++ -o dbms main.cpp -lz
 ./ai\ fuzz\ testing/run_all.sh
 ./ai_fuzz_testing_transactions/run_all.sh
-
-
 
 
