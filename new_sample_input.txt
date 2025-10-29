@@ -1,5 +1,5 @@
 rm -f f1.db && rm -f f1-jn.db && g++ -std=gnu++17 -O2 -o dbms main.cpp MemPoolManager.cpp -lz
-perf stat -d ./dbms <<EOF
+perf stat -d -r 10 ./dbms <<EOF
 i 8 2
 i 9 2
 i 15 3
