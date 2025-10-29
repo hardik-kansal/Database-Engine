@@ -6,7 +6,10 @@
 // .db is just a naming convention
 const char* filename_journal="f1-jn.db";
 const char* filename="f1.db";
-const uint32_t capacity=256;
+const uint32_t capacity=128;
+const uint64_t MAGIC_NUMBER=16102004;
+uint32_t g_i_numOfPages=0;
+
 
 struct Table{
     Pager* pager;
@@ -15,7 +18,7 @@ struct Table{
 
 struct InputBuffer{
     char* buffer;
-    size_t bufferLength;
+    size_t bufferLength; // getline uses this to store buffer size, if small doubles it iteratively
     ssize_t inputLength; // getline returns -1 in error , 0 if not read- rare
 };
 
@@ -193,8 +196,8 @@ bool rollback_journal(int fdj,int fd,uint32_t* i_numOfPages){
         i_numOfPages=0;
         return true;
     }
-    i_numOfPages_g=header.numOfPages;
-    *i_numOfPages=i_numOfPages_g;
+    g_i_numOfPages=header.numOfPages;
+    *i_numOfPages=g_i_numOfPages;
     cout << "Rolling back journal... Restoring " << header.numOfPages << " pages to Main db" << endl;
     flushAll_journal(fdj,fd);
     if(fsync(fd)){
@@ -233,7 +236,7 @@ Pager* pager_open() {
             if(lseek(fd,-static_cast<off_t>(sizeof(uint32_t)),SEEK_END)<0){/* cout<<"here"<<endl; */}
             else if(read(fd,&i_numOfPages,sizeof(uint32_t))<0){cerr<<"ERROR reading numOfPages from Main db"<<endl;exit(EXIT_FAILURE);}
             // cout<<"i_numOfPages at end of Main db: "<<i_numOfPages<<endl;
-            i_numOfPages_g=i_numOfPages;
+            g_i_numOfPages=i_numOfPages;
             cout<<"num of pages in Main db fetched from end: "<<i_numOfPages<<endl;
 
         }
@@ -342,7 +345,7 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
     }
     else if (strcmp(input_buffer->buffer,".bt")==0){
         if(table->pager->getRootPage()->rowCount!=0){
-            i_numOfPages_g=table->pager->numOfPages;
+            g_i_numOfPages=table->pager->numOfPages;
         }
         cout<<endl;
         cout << "=>    Transaction began !" << endl;
@@ -369,7 +372,7 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer,Table* table) {
 
 executeResult execute_insert(Statement* statement, Table* table,bool COMMIT_NOW) {
     if(COMMIT_NOW && table->pager->getRootPage()->rowCount!=0){
-        i_numOfPages_g=table->pager->numOfPages;
+        g_i_numOfPages=table->pager->numOfPages;
     }
     cout << "   -> Inserting key: " << statement->row.key << " with payload: " << statement->row.payload << endl;
     table->bplusTrees->insert(statement->row.key, statement->row.payload);
@@ -399,7 +402,7 @@ executeResult execute_select_id(Statement* statement, Table* table) {
 
 executeResult execute_delete(Statement* statement, Table* table,bool COMMIT_NOW) {
     if(COMMIT_NOW && table->pager->getRootPage()->rowCount!=0){
-        i_numOfPages_g=table->pager->numOfPages;
+        g_i_numOfPages=table->pager->numOfPages;
     }
     // cout << "   -> Attempting to delete key: " << statement->row.key << endl;
     bool deleted = table->bplusTrees->deleteKey(statement->row.key);
@@ -440,7 +443,7 @@ int main(){
     cout<<"opening db connection.."<<endl;
     Table * table=create_db();
     while (true){
-        // cout<<"i_numOfPages_g: "<<i_numOfPages_g<<endl; // For debugging purposes only
+        // cout<<"g_i_numOfPages: "<<g_i_numOfPages<<endl; // For debugging purposes only
         InputBuffer* inputBuffer=createEmptyBuffer();
         print_prompt();
         read_input(inputBuffer);

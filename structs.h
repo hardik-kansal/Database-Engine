@@ -1,6 +1,7 @@
 #ifndef STRUCTS_H
 #define STRUCTS_H
 #include "headerfiles.h"
+#include "MemPoolManager.h"
 const uint16_t PAGE_SIZE = 4096;
 const uint16_t PAGE_HEADER_SIZE = 14;
 #define MAX_ROWS  4
@@ -14,6 +15,9 @@ struct RowSlot {
     uint16_t length;   // 2 bytes (length of username)
 }__attribute__((packed));
 static_assert(sizeof(RowSlot)== 12, "ROWSLOT SIZE MISMATCH");
+// packed drops natural alignment to 1 byte
+static_assert(alignof(RowSlot)== 1, "ROWSLOT ALIGN MISMATCH");
+
 
 constexpr uint16_t MAX_PAYLOAD_SIZE= PAGE_SIZE 
                                 - PAGE_HEADER_SIZE  
@@ -57,6 +61,14 @@ struct pageNode {
     uint8_t payload[MAX_PAYLOAD_SIZE];
     bool dirty;
     bool inJournal;
+
+    static void* operator new(size_t size){
+        return g_pagePool.allocate();
+    }
+    static void operator delete(void* ptr) noexcept{
+        return g_pagePool.deallocate(ptr);
+    }
+
 }__attribute__((packed));
 static_assert(sizeof(pageNode)== PAGE_SIZE+2, "pageNode SIZE MISMATCH");
 
@@ -95,6 +107,16 @@ struct TrunkPageNode {
     uint32_t tPages[NO_OF_TPAGES]; 
     bool dirty;
     bool inJournal;
+
+
+    static void* operator new(size_t size){
+        return g_pagePool.allocate();
+    }
+    static void operator delete(void* ptr) noexcept{
+        return g_pagePool.deallocate(ptr);
+    }
+
+
 }__attribute__((packed));
 static_assert(sizeof(TrunkPageNode)== PAGE_SIZE+2, "TrunkPageNode SIZE MISMATCH");
 
@@ -127,6 +149,16 @@ struct RootPageNode {
     // till now ->pagesize
     bool dirty;
     bool inJournal;
+
+
+    static void* operator new(size_t size){
+        return g_pagePool.allocate();
+    }
+    static void operator delete(void* ptr) noexcept{
+        return g_pagePool.deallocate(ptr);
+    }
+
+
 }__attribute__((packed));
 static_assert(sizeof(RootPageNode)== PAGE_SIZE+2, "RootPageNode SIZE MISMATCH");
 
@@ -134,6 +166,8 @@ static_assert(sizeof(RootPageNode)== PAGE_SIZE+2, "RootPageNode SIZE MISMATCH");
 
 // All equivalent nodes have same size, else disk pages and in memory pages would differ.
 // bool dirty must be  at offset PAGE_SIZE 
+// pageNumber must be uint32_t
+// All node type must have similar header structure
 
 // 20 bytes
 struct rollback_header{

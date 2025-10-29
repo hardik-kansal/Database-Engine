@@ -205,8 +205,8 @@ struct Pager{
         }
         rollback_header header;
         header.magicNumber=MAGIC_NUMBER;
-        // cout<<"header.numOfPages"<<i_numOfPages_g<<endl;
-        header.numOfPages=i_numOfPages_g;
+        // cout<<"header.numOfPages"<<g_i_numOfPages<<endl;
+        header.numOfPages=g_i_numOfPages;
         header.salt1=databaseVersion+1; // for database versioning
         header.salt2=random_u32(); // for checksum
 

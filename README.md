@@ -1,6 +1,6 @@
-# Custom DBMS (B+ Tree, Pager, LRU)
+# Custom DBMS (B+ Tree, Pager, LRU, MemPoolManager)
 
-A lightweight key–value store in C++ using a single-file slotted storage format, a B+ tree index, LRU page cache, pager with dirty tracking, defragmentation, rollback journal system with automatic recovery, and a REPL for insert/delete/search operations with transaction support.
+A lightweight key–value store in C++ using a single-file slotted storage format, a B+ tree index, LRU page cache, pager with dirty tracking, defragmentation, rollback journal system with automatic recovery, memory pool management, and a REPL for insert/delete/search operations with transaction support.
 
 
 
@@ -188,6 +188,10 @@ i 200 data4           # Immediately committed
 >
 > **Page size and the OS kernel:**  
 > Operating systems manage memory in fixed-size blocks called "pages" (commonly 4096 bytes on modern systems). Setting the database page size equal to the OS's virtual memory page size allows for more efficient memory mapping and I/O: the database can map file pages directly to memory pages, reducing overhead and improving performance.
+>
+> **Why use a mempool for LRU in-memory pages?**  
+> A mempool groups all in-memory pages in contiguous memory, maximizing **spatial locality** (related data is close together) and **temporal locality** (recently-used pages stay active in the cache). This structure makes LRU operations and page access much faster: lookups, updates, and eviction are efficient due to the predictable memory layout, which also improves CPU cache performance.
+
 
 
 
@@ -283,6 +287,7 @@ Throughout the codebase, the minimal possible size for each variable is used to 
 - `btree.h`: B+ tree implementation (insert, delete, search, split/merge, print)
 - `pager.h`: Page I/O, cache integration, endian conversion, flush
 - `LRU.h`: LRU cache
+- `MemPoolManager.h`, `MemPoolManager.cpp`: Custom memory pool for efficient fixed-size object allocation.
 - `structs.h`: All on-disk and in-memory page/record structs and constants
 - `utils.h`, `enums.h`, `headerfiles.h`: shared helpers, enums, and includes
 
