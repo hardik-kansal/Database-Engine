@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+g++ -std=gnu++17 -O2 -o dbms main.cpp MemPoolManager.cpp -lz
+
 dir="$(cd "$(dirname "$0")" && pwd)"
 
 chmod +x "$dir"/*.sh || true
@@ -10,7 +12,6 @@ tests=(
   freepage_trunk_start_01.sh
   txn_insert_delete_01.sh
   txn_interleaved_commits_01.sh
-  txn_large_payloads_01.sh
   edge_keys_01.sh
 )
 

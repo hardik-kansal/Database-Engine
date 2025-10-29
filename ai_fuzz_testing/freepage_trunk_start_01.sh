@@ -1,4 +1,5 @@
 rm -f f1.db && rm -f f1-jn.db
+g++ -std=gnu++17 -O2 -o dbms main.cpp MemPoolManager.cpp -lz
 
 echo "=== Running freepage_trunk_start_01.sh ==="
 

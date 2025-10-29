@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Ensure a clean slate at the very beginning
-rm -f f1.db && rm -f f1-jn.db && g++ -o dbms main.cpp -lz
+rm -f f1.db && rm -f f1-jn.db && g++ -std=gnu++17 -O2 -o dbms main.cpp MemPoolManager.cpp -lz
 
 # Populate some initial data (auto-commit mode)
 ./dbms <<EOF

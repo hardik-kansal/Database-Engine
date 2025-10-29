@@ -9,6 +9,7 @@ i 3 1
 i 19 3
 i 10 2
 i 11 2
+.bt
 i 12 2
 i 13 3
 i 14 3
@@ -16,6 +17,8 @@ i 4 1
 i 5 2
 i 6 2
 i 7 2
+.c
+.bt
 i 30 3
 i 31 3
 i 32 h
@@ -36,6 +39,7 @@ i 21 h
 i 22 h
 i 23 h
 i 24 h
+.c
 i 25 3
 i 26 h
 i 27 h
@@ -70,6 +74,7 @@ d 33
 d 34 
 d 35 
 d 36 
+.c
 d 37 
 d 38 
 d 39 
@@ -77,8 +82,11 @@ d 40
 d 41 
 d 16 
 d 17 
-d 20 
+d 20
+.bt 
 d 18 
+.c
+.bt
 d 21 
 d 22
 d 23 
@@ -94,8 +102,13 @@ s*
 EOF
 
 // TO RUN AI GENERATED TESTS
-rm -f f1.db && rm -f f1-jn.db && g++ -o dbms main.cpp -lz
-./ai\ fuzz\ testing/run_all.sh
+
+rm -f f1.db && rm -f f1-jn.db && g++ -std=gnu++17 -O2 -o dbms main.cpp MemPoolManager.cpp -lz
+sudo chmod +x ./ai_fuzz_testing/run_all.sh
+./ai_fuzz_testing/run_all.sh
+
+rm -f f1.db && rm -f f1-jn.db && g++ -std=gnu++17 -O2 -o dbms main.cpp MemPoolManager.cpp -lz
+sudo chmod +x ./ai_fuzz_testing_transactions/run_all.sh
 ./ai_fuzz_testing_transactions/run_all.sh
 
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-rm -f f1.db && rm -f f1-jn.db && g++ -o dbms main.cpp -lz
+rm -f f1.db && rm -f f1-jn.db && g++ -std=gnu++17 -O2 -o dbms main.cpp MemPoolManager.cpp -lz
 
 # Populate some data first (auto-commit mode)
 ./dbms <<EOF

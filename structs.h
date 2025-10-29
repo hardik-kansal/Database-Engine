@@ -2,7 +2,7 @@
 #define STRUCTS_H
 #include "headerfiles.h"
 #include "MemPoolManager.h"
-const uint16_t PAGE_SIZE = 4096;
+const uint16_t PAGE_SIZE = 4096; // can be change to (os_page_size-2)
 const uint16_t PAGE_HEADER_SIZE = 14;
 #define MAX_ROWS  4
 #define SECTOR_SIZE  512

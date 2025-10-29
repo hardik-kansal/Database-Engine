@@ -2,7 +2,7 @@
 set -euo pipefail
 
 rm -f f1.db f1-jn.db dbms a.out || true
-g++ -std=gnu++17 -O2 -o dbms main.cpp -lz
+g++ -std=gnu++17 -O2 -o dbms main.cpp MemPoolManager.cpp -lz
 
 MAX=18446744073709551615
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+g++ -std=gnu++17 -O2 -o dbms main.cpp MemPoolManager.cpp -lz
+
 dir="$(cd "$(dirname "$0")" && pwd)"
 
 tests=(
