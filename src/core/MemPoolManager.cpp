@@ -1,8 +1,6 @@
-#include "headerfiles.h"
-#include "structs.h"
-#include "MemPoolManager.h"
+#include "dbms/core/MemPoolManager.h"
 // all const/constexpr must be in initailzation list
-
+namespace dbms::core{ 
 NodePool::NodePool(size_t poolSize,uint16_t INDEX_SIZE)
     : INDEX_SIZE(INDEX_SIZE),
     poolSize(poolSize)
@@ -72,3 +70,4 @@ NodePool:: ~NodePool(){
 
 NodePool g_pagePool(capacity,PAGE_SIZE+2);
 NodePool g_lruPool(capacity,32);
+}

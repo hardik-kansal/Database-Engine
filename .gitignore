@@ -3,3 +3,4 @@ main
 dbms
 *.db
 *.h.gch
+build

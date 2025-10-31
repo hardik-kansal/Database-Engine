@@ -1,7 +1,10 @@
-#include "pager.h"
-#include "headerfiles.h"
-#include "btree.h"
-#include "utils.h"
+#include "pch.h"
+#include "dbms/core/pager.h"
+#include "dbms/core/btree.h"
+#include "dbms/utils/utils.h"
+#include "dbms/structs/enums.h"
+
+using namespace dbms::core;
 
 // .db is just a naming convention
 const char* filename_journal="f1-jn.db";
@@ -9,6 +12,7 @@ const char* filename="f1.db";
 const uint32_t capacity=128;
 const uint64_t MAGIC_NUMBER=16102004;
 uint32_t g_i_numOfPages=0;
+
 
 
 struct Table{

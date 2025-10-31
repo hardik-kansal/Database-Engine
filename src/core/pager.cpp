@@ -1,0 +1,265 @@
+#include "dbms/core/pager.h"
+
+
+namespace dbms::core{
+
+
+
+// off_t long long int
+pageNode* Pager::getPage(uint32_t page_no){
+    if(this->lruCache->get(page_no)!=nullptr)return static_cast<pageNode*>(this->lruCache->get(page_no));
+    else{
+        off_t success=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
+        if(success<0)exit(EXIT_FAILURE);
+        Page rawPage{};
+        ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
+        if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
+        if(!ifLe){
+            reading = true;
+            uint8_t* temp=new uint8_t[PAGE_SIZE];
+            swapEndian(&rawPage,temp);
+            memcpy(&rawPage,temp,PAGE_SIZE);
+            delete[] temp;
+        }
+        
+        pageNode* node = new pageNode();
+        node->pageNumber = rawPage.pageNumber;
+        node->type = static_cast<PageType>(rawPage.type); 
+        // c++ stores in file as 0,1 on retrieving error if not typecast.
+        node->rowCount = rawPage.rowCount; 
+        node->freeStart=rawPage.freeStart; 
+        node->freeEnd=rawPage.freeEnd; 
+        memcpy(node->slots,rawPage.slots,sizeof(RowSlot)*MAX_ROWS); 
+        memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE);
+        
+        node->dirty=false;
+        
+        this->lruCache->put(page_no,node);
+
+        return node;
+    }
+}
+
+RootPageNode* Pager::getRootPage(){
+    uint32_t page_no=1;
+    if(page_no>this->numOfPages)return nullptr;
+    if(this->lruCache->get(page_no)!=nullptr)return static_cast<RootPageNode*>(this->lruCache->get(page_no));
+    else{
+        off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
+        if(offset<0)exit(EXIT_FAILURE);
+        RootPage rawPage{};
+        ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
+        if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
+
+        // convert littleEndiness on disk RootPage if machine bigEndian
+        if(!ifLe){
+            reading = true;
+            uint8_t* temp=new uint8_t[PAGE_SIZE];
+            swapEndian(&rawPage,temp);
+            memcpy(&rawPage,temp,PAGE_SIZE);
+            delete[] temp;
+        }
+        // cout<<"getting root page from main db.."<<endl;
+        RootPageNode* node = new RootPageNode();
+        // cout<<"rawPage.pageNumber: "<<rawPage.pageNumber<<endl;
+        // cout<<"rawPage.type: "<<rawPage.type<<endl;
+        node->pageNumber = rawPage.pageNumber;
+        node->type = static_cast<PageType>(rawPage.type); 
+        // c++ stores in file as 0,1 on retrieving error if not typecast.
+        node->rowCount = rawPage.rowCount; 
+        node->freeStart=rawPage.freeStart; 
+        node->freeEnd=rawPage.freeEnd; 
+        memcpy(node->slots,rawPage.slots,sizeof(RowSlot) *MAX_ROWS); 
+        memcpy(node->payload,rawPage.payload,MAX_PAYLOAD_SIZE_ROOT);
+        node->trunkStart=rawPage.trunkStart;         
+        node->dirty=false; 
+        node->databaseVersion=rawPage.databaseVersion;          
+        this->lruCache->put(1,node);
+        
+        return node;
+    }
+}
+TrunkPageNode* Pager::getTrunkPage(uint32_t page_no){
+    if(this->lruCache->get(page_no)!=nullptr)return static_cast<TrunkPageNode*>(this->lruCache->get(page_no));
+    else{
+        off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
+        if(offset<0)exit(EXIT_FAILURE);
+        TrunkPage rawPage{};
+        ssize_t bytesRead = read(this->file_descriptor, &rawPage, PAGE_SIZE);
+        if (bytesRead <0){cout<<"ERROR READING"<<endl;exit(EXIT_FAILURE);}
+        // convert littleEndiness on disk TrunkPage if machine bigEndian
+        if(!ifLe){
+            reading = true;
+            uint8_t* temp=new uint8_t[PAGE_SIZE];
+            swapEndian(&rawPage,temp);
+            memcpy(&rawPage,temp,PAGE_SIZE);
+            delete[] temp;
+        }
+        
+        TrunkPageNode* node = new TrunkPageNode();
+        node->pageNumber = rawPage.pageNumber;
+        node->type = static_cast<PageType>(rawPage.type); 
+        // c++ stores in file as 0,1 on retrieving error if not typecast.
+        node->rowCount = rawPage.rowCount; 
+        memcpy(node->tPages,rawPage.tPages,sizeof(uint32_t) *(NO_OF_TPAGES)); 
+        node->prevTrunkPage=rawPage.prevTrunkPage;         
+        node->dirty=false;
+        
+        this->lruCache->put(page_no,node);
+
+        return node;
+    }
+}
+void Pager::writePage(void* node){
+    uint32_t page_no=GET_PAGE_NO(node,true);
+    off_t offset=lseek(this->file_descriptor,(page_no-1)*PAGE_SIZE,SEEK_SET);
+    if(offset<0)exit(EXIT_FAILURE);
+    // always write to disk in littleEndainess
+    if(ifLe){
+        ssize_t bytes_written = write(this->file_descriptor,node,PAGE_SIZE);
+        if (bytes_written<0) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
+    }
+    else{
+        reading=false;
+        uint8_t* temp = new uint8_t[PAGE_SIZE];
+        swapEndian(node,temp);
+        ssize_t bytes_written = write(this->file_descriptor,temp,PAGE_SIZE);
+        if (bytes_written<0) {cout<<"ERROR WRITING"<<endl;exit(EXIT_FAILURE);}
+        delete[] temp;
+    }
+}
+
+void Pager::flushAll(){
+    uint32_t count=this->lruCache->count;
+    Node* tem=this->lruCache->head->next;
+    int counter=0;
+    for(uint32_t i=0;i<count;i++){
+        if (GET_PAGE_NO(tem->value,true)==1){this->writePage(tem->value);}
+        else if(GET_DIRTY(tem->value,PAGE_SIZE+1)){this->writePage(tem->value);}
+        
+        // EACH Query or transaction once done needed to unmark 
+        // ELSE seperate queries will consider flushAgain or consider them in their journal.
+    
+        static_cast<pageNode*>(tem->value)->dirty=false;
+        static_cast<pageNode*>(tem->value)->inJournal=false;
+        // cast to any page type since inJournal is at same offset in all page type structs
+        counter++;
+
+        /*
+------------------------------------------------------------------------
+
+        if(counter==2){
+            cout<<"FAILING WHILE FLUSHING TO MAIN DB"<<endl;
+            exit(EXIT_FAILURE);
+        }
+
+------------------------------------------------------------------------
+        */
+        tem=tem->next;
+    }
+}
+
+uint16_t Pager::getRow(uint16_t id,uint32_t page_no){
+
+    pageNode* page=getPage(page_no);
+    if(page->type!=PAGE_TYPE_LEAF){cout<<"INTERIOR PAGE ACCESSED FOR ROW";exit(EXIT_FAILURE);}
+    uint16_t index=lb(page->slots,page->rowCount,id);
+    if(index==page->rowCount){cout<<"ERROR: index==page->rowCount"<<endl;exit(EXIT_FAILURE);}
+    return index;
+    
+}
+// index id 0 based and gives corresponding pageNo.
+uint32_t Pager::getPageNoPayload(void* curr,uint16_t index){
+    uint32_t value;
+    if(index<static_cast<pageNode*>(curr)->rowCount){
+    if(GET_PAGE_NO(curr,true)==1)memcpy(&value, static_cast<uint8_t*>(curr) + static_cast<RootPageNode*>(curr)->slots[index].offset, sizeof(uint32_t));  
+    else {memcpy(&value, static_cast<uint8_t*>(curr) + static_cast<pageNode*>(curr)->slots[index].offset, sizeof(uint32_t));}  
+    }
+    else{
+        if(GET_PAGE_NO(curr,true)==1)memcpy(&value, static_cast<uint8_t*>(curr) + static_cast<RootPageNode*>(curr)->freeStart, sizeof(uint32_t));  
+        else memcpy(&value, static_cast<uint8_t*>(curr) + static_cast<pageNode*>(curr)->freeStart, sizeof(uint32_t)); 
+    }
+    return value;
+}
+
+void Pager::write_back_header_to_journal(){
+    cout<<"writing header to journal.."<<endl;
+    int fdj =this->file_descriptor_journal;
+    int fd=this->file_descriptor;
+
+    if(lseek(fd,PAGE_SIZE-DATABASE_VER_BACK_SIZE,SEEK_SET)<0){exit(EXIT_FAILURE);}
+    uint32_t databaseVersion=0;
+    if(read(fd,&databaseVersion,4)<0 && this->numOfPages>1){
+        exit(EXIT_FAILURE);
+    }
+    rollback_header header;
+    header.magicNumber=MAGIC_NUMBER;
+    // cout<<"header.numOfPages"<<g_i_numOfPages<<endl;
+    header.numOfPages=g_i_numOfPages;
+    header.salt1=databaseVersion+1; // for database versioning
+    header.salt2=random_u32(); // for checksum
+
+    // const is used for both runtime/compile time asignment
+    // constexpr is used for only compile time expr
+    constexpr size_t padded_len = ((ROLLBACK_HEADER_SIZE + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+
+    // ISOC++ req array size to be const/constexpr
+    // gcc is extension thats why works, but might fail on MSVC (MS Visual Compiler) 
+    uint8_t buffer[padded_len];
+    memset(buffer, 0, padded_len);
+    memcpy(buffer, &header,ROLLBACK_HEADER_SIZE );
+    if(lseek(fdj,0,SEEK_SET)<0){exit(EXIT_FAILURE);}
+    if(write(fdj, buffer, padded_len)<0){exit(EXIT_FAILURE);}
+
+    this->lruCache->salt1=header.salt1;
+    this->lruCache->salt2=header.salt2;
+    this->lruCache->checkMagic=MAGIC_NUMBER;
+    this->lruCache->no_of_pages_in_journal=0;
+    cout<<"version: "<<header.salt1<<endl;
+    
+}
+void Pager::write_page_with_checksum(void* page) {
+    
+    // cout<<"while storing.."<<endl;
+    // cout<<"page: "<<GET_PAGE_NO(page,true)<<endl;
+    // // cout<<"pageTYpe: "<<GET_PAGE_TYPE(page,true)<<endl;
+    // cout<<"rowcount: "<<GET_ROW_COUNT(page,true)<<endl;
+    // // cout<<"salt2: "<<this->lruCache->salt2<<endl;
+    
+
+    uint32_t cksum = crc32_with_salt(page,PAGE_SIZE,this->lruCache->salt2);
+    // cout<<"cksum: "<<cksum<<endl;
+    constexpr size_t total_len = PAGE_SIZE + sizeof(uint32_t);
+    constexpr size_t padded_len = ((total_len + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+
+    uint8_t buffer[padded_len];
+    memset(buffer, 0, padded_len);
+
+    memcpy(buffer, page, PAGE_SIZE);
+    memcpy(buffer + PAGE_SIZE, &cksum, sizeof(cksum));
+
+    size_t total_len_header = ROLLBACK_HEADER_SIZE;
+    size_t padded_len_header = ((total_len_header + SECTOR_SIZE - 1) / SECTOR_SIZE) * SECTOR_SIZE;
+
+
+    int fdj=this->file_descriptor_journal;
+    uint16_t i=this->lruCache->no_of_pages_in_journal;
+
+    // size_t is unsigned long used for counts,sizes,len, return type of sizeof
+    //  off_t is signed long return type of read, write, offset.
+    // usigned to signed may change sign though but at 2^61 len only. 
+    if(lseek(fdj,static_cast<off_t>(padded_len_header+padded_len*i),SEEK_SET)<0){exit(EXIT_FAILURE);}
+    if(write(fdj, buffer, padded_len)<0){exit(EXIT_FAILURE);}
+    this->lruCache->no_of_pages_in_journal++;
+
+}
+
+void Pager::write_back_to_journal(void* page){
+    if(this->lruCache->checkMagic!=MAGIC_NUMBER){
+        write_back_header_to_journal();
+    }
+    cout<<"logging page "<<GET_PAGE_NO(page,true)<<" orginal content to journal end.."<<endl;
+    write_page_with_checksum(page);        
+}
+
+}
